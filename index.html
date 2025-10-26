@@ -1,597 +1,141 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AmeTak — Tactical System PRO (Menu & Tools)</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111827">
+<title>Tactical System PRO</title>
 
-<!-- Leaflet -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- Leaflet.draw -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-
-<!-- leaflet.heat -->
-<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
-
-<!-- proj4 + mgrs -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
-<script src="https://unpkg.com/mgrs@1.0.0/mgrs.min.js"></script>
-
-<!-- JSZip for ZIP export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-
-<!-- Tailwind CDN for quick styling -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
 
 <style>
-  html,body,#map { height: 100%; margin:0; }
-  body { background:#07121a; color:#e6eef8; font-family:Inter,system-ui,Arial; }
-  .ui-card { background: rgba(7,12,26,0.88); border:1px solid rgba(255,255,255,0.04); }
-  .hamburger { width:42px; height:42px; display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:8px; }
-  .menu-drop { width:320px; max-height:80vh; overflow:auto; }
-  .btn { padding:8px 10px; border-radius:8px; cursor:pointer; border:none; }
-  .small { font-size:12px; color:#9ca3af; }
-  .badge { background:#ef4444; padding:2px 6px; border-radius:999px; font-size:12px; color:white; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; font-family: system-ui, -apple-system; }
+  #root { width:100%; height:100%; }
+  .crosshair {
+    position: absolute;
+    left:50%;
+    top:50%;
+    transform: translate(-50%, -50%);
+    width:24px;
+    height:24px;
+    border:2px solid red;
+    border-radius:50%;
+    pointer-events:none;
+    z-index:50;
+  }
 </style>
 </head>
+
 <body>
+<div id="root"></div>
+<div class="crosshair"></div>
 
-<div id="map"></div>
+<script type="text/babel">
 
-<!-- Top-left: Hamburger -->
-<div style="position:absolute; left:12px; top:12px; z-index:1200;">
-  <div id="hamburger" class="ui-card p-2 shadow">
-    <div class="flex items-center gap-2">
-      <div id="hambtn" class="hamburger bg-slate-800 hover:bg-slate-700">
-        <svg width="20" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="#d1d5db" stroke-width="2" stroke-linecap="round"/></svg>
+const { useState, useEffect, useRef } = React;
+
+const TacticalApp = () => {
+  const [map, setMap] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [markers, setMarkers] = useState([]);
+  const [coordFormat, setCoordFormat] = useState('dd');
+  const [points, setPoints] = useState([]);
+
+  const mapRef = useRef(null);
+
+  useEffect(() => {
+    const m = L.map('root', { zoomControl: false }).setView([45, 12], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(m);
+    setMap(m);
+    mapRef.current = m;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(pos => {
+        const latlng = [pos.coords.latitude, pos.coords.longitude];
+        setUserLocation(latlng);
+      }, err => alert('GPS Error: ' + err.message), { enableHighAccuracy: true });
+    }
+  }, []);
+
+  const formatCoordinates = (lat, lng) => {
+    switch(coordFormat) {
+      case 'dd': return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      case 'dms': return toDMS(lat,true)+', '+toDMS(lng,false);
+      case 'utm': return toUTM(lat,lng);
+      case 'mgrs': return toMGRS(lat,lng);
+      default: return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+  };
+
+  const toDMS = (deg, isLat) => {
+    const abs = Math.abs(deg);
+    const d = Math.floor(abs);
+    const m = Math.floor((abs - d) * 60);
+    const s = ((abs - d - m/60)*3600).toFixed(2);
+    const dir = deg>=0 ? (isLat?'N':'E') : (isLat?'S':'W');
+    return `${d}°${m}'${s}" ${dir}`;
+  };
+
+  const toUTM = (lat,lng) => { return `UTM ${lat.toFixed(4)}, ${lng.toFixed(4)}`; } // semplificato
+  const toMGRS = (lat,lng) => { return `MGRS ${lat.toFixed(4)}, ${lng.toFixed(4)}`; } // semplificato
+
+  const handleMapClick = (e) => {
+    const { lat, lng } = e.latlng;
+    const marker = L.marker([lat,lng], { draggable:true }).addTo(map);
+    marker.bindPopup(`Coordinate: ${formatCoordinates(lat,lng)}`).openPopup();
+    setMarkers([...markers, marker]);
+    setPoints([...points, marker]);
+  };
+
+  useEffect(() => {
+    if (!map) return;
+    map.on('click', handleMapClick);
+    return () => map.off('click', handleMapClick);
+  }, [map, markers, coordFormat]);
+
+  return (
+    <div className="h-full w-full relative">
+      {/* Menu strumenti */}
+      <div className="absolute top-4 left-4 bg-gray-800 text-white p-2 rounded z-50 flex flex-col gap-2">
+        <label className="text-sm">Formato coordinate:</label>
+        <select value={coordFormat} onChange={e=>setCoordFormat(e.target.value)} className="bg-gray-700 p-1 rounded">
+          <option value="dd">Decimali</option>
+          <option value="dms">DMS</option>
+          <option value="utm">UTM</option>
+          <option value="mgrs">MGRS</option>
+        </select>
+        <button className="bg-blue-600 p-1 rounded" onClick={()=>points.forEach(m=>m.remove())}>Cancella Marker</button>
       </div>
-      <div>
-        <div style="font-weight:700">AmeTak</div>
-        <div class="small">TACTICAL SYSTEM PRO</div>
+
+      {/* Info box */}
+      <div className="absolute bottom-4 left-4 bg-gray-800 text-white p-2 rounded shadow-lg z-50">
+        Coordinate: {userLocation ? formatCoordinates(...userLocation) : '...' }
+        <br/>
+        {points.length>0 && userLocation && (
+          <>
+          Distanza dall’ultimo punto: {turf.distance([points[points.length-1].getLatLng().lng, points[points.length-1].getLatLng().lat], [userLocation[1],userLocation[0]], {units:'kilometers'}).toFixed(3)} km
+          <br/>
+          Direzione: {turf.bearing([points[points.length-1].getLatLng().lng, points[points.length-1].getLatLng().lat], [userLocation[1],userLocation[0]]).toFixed(1)}°
+          </>
+        )}
       </div>
     </div>
-  </div>
-
-  <!-- Dropdown menu (hidden until toggled) -->
-  <div id="menu" class="menu-drop ui-card mt-2 p-3 rounded-lg hidden shadow">
-    <div class="font-semibold mb-2">Tools</div>
-
-    <div class="space-y-2">
-      <button id="tool-add-marker" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white">📍 Aggiungi Marker (posizione)</button>
-
-      <div class="flex gap-2">
-        <button id="tool-measure" class="btn flex-1 bg-red-600 hover:bg-red-700 text-white">📏 Misura</button>
-        <button id="tool-range" class="btn bg-indigo-600 hover:bg-indigo-700 text-white" title="Range circle">⭕ Range</button>
-      </div>
-
-      <button id="tool-draw" class="btn w-full bg-purple-600 hover:bg-purple-700 text-white">🔷 Disegna Area</button>
-
-      <div>
-        <label class="small">Marker type</label>
-        <select id="marker-type" class="w-full p-2 mt-1 rounded bg-slate-800 text-white">
-          <option value="waypoint">📍 Waypoint</option>
-          <option value="objective">🎯 Objective</option>
-          <option value="observation">👁️ Observation</option>
-          <option value="hazard">⚠️ Hazard</option>
-          <option value="friendly">🔵 Friendly</option>
-          <option value="hostile">🔴 Hostile</option>
-          <option value="medic">🏥 Medic</option>
-          <option value="supply">📦 Supply</option>
-          <option value="lz">🚁 LZ</option>
-        </select>
-      </div>
-
-      <div class="pt-2 border-t border-slate-700"></div>
-
-      <div class="flex items-center gap-2">
-        <label class="small w-32">Layer</label>
-        <select id="layer-select" class="flex-1 p-2 rounded bg-slate-800 text-white">
-          <option value="osm">OpenStreetMap</option>
-          <option value="esri">Esri.WorldImagery (Satellite)</option>
-          <option value="opentopo">OpenTopoMap</option>
-          <option value="stamen">Stamen Toner</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="small">Coordinate formats</label>
-        <div class="flex gap-2 mt-1">
-          <label class="flex items-center gap-2"><input id="show-dd" type="checkbox" checked/> DD</label>
-          <label class="flex items-center gap-2"><input id="show-dms" type="checkbox" checked/> DMS</label>
-          <label class="flex items-center gap-2"><input id="show-utm" type="checkbox" checked/> UTM</label>
-          <label class="flex items-center gap-2"><input id="show-mgrs" type="checkbox" checked/> MGRS</label>
-        </div>
-      </div>
-
-      <div class="pt-2 border-t border-slate-700"></div>
-
-      <div class="flex gap-2">
-        <button id="btn-export" class="btn flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">💾 Export</button>
-        <input id="import-file" type="file" accept=".json,.gpx,.kml" class="hidden"/>
-        <button id="btn-import" class="btn bg-slate-700 hover:bg-slate-600 text-white">📥 Import</button>
-      </div>
-
-      <div class="pt-2 border-t border-slate-700"></div>
-
-      <div class="small">Unità distanza</div>
-      <div class="flex gap-2 mt-1">
-        <select id="unit-select" class="p-2 rounded bg-slate-800 text-white">
-          <option value="m">m</option>
-          <option value="km">km</option>
-          <option value="mi">miles</option>
-          <option value="yd">yards</option>
-          <option value="nm">nautical</option>
-        </select>
-        <select id="az-unit" class="p-2 rounded bg-slate-800 text-white">
-          <option value="deg">gradi</option>
-          <option value="mils">mils (6400)</option>
-        </select>
-      </div>
-
-      <div class="pt-2 border-t border-slate-700"></div>
-      <button id="btn-clear" class="btn w-full bg-red-600 hover:bg-red-700 text-white">🗑️ Cancella tutti i dati</button>
-    </div>
-  </div>
-</div>
-
-<!-- Top-right: Info -->
-<div style="position:absolute; right:12px; top:12px; z-index:1200;">
-  <div class="ui-card p-2 rounded-lg shadow">
-    <div class="flex items-center gap-3">
-      <div>
-        <div class="font-semibold">Info</div>
-        <div class="small">Pos: <span id="posTxt">N/A</span></div>
-        <div class="small">Dist: <span id="distTxt">N/A</span></div>
-      </div>
-      <div class="ml-2">
-        <div id="compass" style="width:54px;height:54px;border-radius:8px;background:#0f1724;display:flex;align-items:center;justify-content:center;font-weight:700">N</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Bottom center stats -->
-<div style="position:absolute; left:50%; transform:translateX(-50%); bottom:12px; z-index:1200;">
-  <div class="ui-card p-2 rounded-lg shadow flex gap-4 items-center">
-    <div class="small">Markers: <b id="stat-markers">0</b></div>
-    <div class="small">Aree: <b id="stat-areas">0</b></div>
-    <div class="small">Breadcrumbs: <b id="stat-bc">0</b></div>
-    <div class="small">Bearing: <b id="stat-bearing">N/A</b></div>
-  </div>
-</div>
-
-<script>
-/* =============================
-   AmeTak — Menu + Tools Enhanced
-   Single-file app (Leaflet)
-   ============================= */
-
-/* --- Helper utilities --- */
-const clamp = (v,a,b)=> Math.max(a, Math.min(b,v));
-const fmtDD = (lat,lng)=> `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-function fmtDMS(lat,lng){
-  function fmt(d,isLat){
-    const abs=Math.abs(d), deg=Math.floor(abs), min=Math.floor((abs-deg)*60);
-    const sec=((abs-deg-min/60)*3600).toFixed(2);
-    const dir=isLat?(d>=0?'N':'S'):(d>=0?'E':'W');
-    return `${deg}°${String(min).padStart(2,'0')}'${String(sec).padStart(5,'0')}" ${dir}`;
-  }
-  return fmt(lat,true) + ' ' + fmt(lng,false);
-}
-function degToMils(deg){ return Math.round((deg/360)*6400); }
-function metersToUnit(m, unit){
-  if (unit==='m') return m.toFixed(1) + ' m';
-  if (unit==='km') return (m/1000).toFixed(3) + ' km';
-  if (unit==='mi') return (m/1609.344).toFixed(3) + ' mi';
-  if (unit==='yd') return (m/0.9144).toFixed(1) + ' yd';
-  if (unit==='nm') return (m/1852).toFixed(3) + ' nm';
-  return m.toFixed(1)+' m';
-}
-function bearingBetween(lat1,lng1,lat2,lng2){
-  const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
-  const Δλ=(lng2-lng1)*Math.PI/180;
-  const y=Math.sin(Δλ)*Math.cos(φ2);
-  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-  let θ=Math.atan2(y,x)*180/Math.PI; if (θ<0) θ+=360; return θ;
-}
-
-/* --- Map init --- */
-const map = L.map('map',{zoomControl:true}).setView([45.4642,9.19],13);
-const base = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'}),
-  esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}),
-  opentopo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17}),
-  stamen: L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',{maxZoom:20})
-};
-base.osm.addTo(map);
-
-/* Layers */
-const markersLayer = L.layerGroup().addTo(map);
-const areasLayer = L.layerGroup().addTo(map);
-const breadcrumbsLayer = L.layerGroup().addTo(map);
-const rangeLayer = L.layerGroup().addTo(map);
-
-/* draw */
-const drawnItems = new L.FeatureGroup().addTo(map);
-const drawControl = new L.Control.Draw({
-  draw: { polyline:false, rectangle:false, circle:false, marker:false, polygon:{allowIntersection:false, showArea:true} },
-  edit: { featureGroup: drawnItems }
-});
-map.addControl(drawControl);
-
-/* state */
-let markers = [];   // {id,lat,lng,type,title,desc}
-let areas = [];     // {id,name,latlngs}
-let breadcrumbs = [];
-let userPos = null;
-
-/* UI refs */
-const hamburger = document.getElementById('hambtn');
-const menu = document.getElementById('menu');
-const posTxt = document.getElementById('posTxt');
-const distTxt = document.getElementById('distTxt');
-const compassEl = document.getElementById('compass');
-const statMarkers = document.getElementById('stat-markers');
-const statAreas = document.getElementById('stat-areas');
-const statBc = document.getElementById('stat-bc');
-const statBearing = document.getElementById('stat-bearing');
-
-/* Marker icons mapping (simple emoji-based) */
-const mtypes = {
-  waypoint:{icon:'📍',color:'#3b82f6'},
-  objective:{icon:'🎯',color:'#ef4444'},
-  observation:{icon:'👁️',color:'#10b981'},
-  hazard:{icon:'⚠️',color:'#f59e0b'},
-  friendly:{icon:'🔵',color:'#06b6d4'},
-  hostile:{icon:'🔴',color:'#dc2626'},
-  medic:{icon:'🏥',color:'#ef4444'},
-  supply:{icon:'📦',color:'#8b5cf6'},
-  lz:{icon:'🚁',color:'#22c55e'}
+  );
 };
 
-/* toggle menu */
-hamburger.addEventListener('click', ()=> menu.classList.toggle('hidden') );
+ReactDOM.render(<TacticalApp />, document.getElementById('root'));
 
-/* change base layer */
-document.getElementById('layer-select').addEventListener('change', (e)=> {
-  Object.values(base).forEach(b=> map.removeLayer(b));
-  const v = e.target.value; base[v]?.addTo(map);
-});
-
-/* leaflet draw events (polygon create) */
-map.on(L.Draw.Event.CREATED, function(e){
-  const layer = e.layer;
-  drawnItems.addLayer(layer);
-  if (e.layerType==='polygon'){
-    const latlngs = layer.getLatLngs()[0].map(p=>[p.lat,p.lng]);
-    const id = 'area-'+Date.now();
-    areas.push({id,name:'Area '+(areas.length+1),latlngs});
-    areasLayer.clearLayers(); areas.forEach(a=> L.polygon(a.latlngs,{color:'#f59e0b',fillOpacity:0.08}).addTo(areasLayer));
-    refreshStats();
-    autosave();
-  }
-});
-
-/* GPS & breadcrumbs */
-if ('geolocation' in navigator){
-  navigator.geolocation.watchPosition(p=>{
-    userPos = {lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy};
-    posTxt.innerText = `${userPos.lat.toFixed(6)}, ${userPos.lng.toFixed(6)} (±${Math.round(userPos.acc)} m)`;
-    breadcrumbs.push([userPos.lat,userPos.lng]);
-    if (breadcrumbs.length>600) breadcrumbs.shift();
-    // render breadcrumbs
-    breadcrumbsLayer.clearLayers(); breadcrumbs.forEach(b=> L.circleMarker(b,{radius:2, color:'#06b6d4'}).addTo(breadcrumbsLayer));
-    statBc.innerText = breadcrumbs.length;
-    // center first time
-    if (breadcrumbs.length===1) map.setView([userPos.lat,userPos.lng],16);
-  }, err=> { posTxt.innerText = 'GPS error'; }, {enableHighAccuracy:true, maximumAge:2000});
-} else posTxt.innerText = 'GPS non disponibile';
-
-/* click on map to add marker (when using add tool) */
-let addMarkerMode = false;
-document.getElementById('tool-add-marker').addEventListener('click', ()=> {
-  addMarkerMode = true;
-  menu.classList.add('hidden');
-  alert('Tocca la mappa per aggiungere il marker sulla posizione toccata. Clicca ESC per annullare.');
-});
-map.on('click', function(e){
-  if (!addMarkerMode) return;
-  addMarkerMode = false;
-  const lat=e.latlng.lat, lng=e.latlng.lng;
-  const type = document.getElementById('marker-type').value || 'waypoint';
-  const id = 'm-'+Date.now();
-  const title = prompt('Titolo marker','Nuovo marker') || (mtypes[type]?.icon+' '+type);
-  const desc = prompt('Descrizione (opzionale)','') || '';
-  const meta = {id,lat,lng,type,title,desc,createdBy:'ALPHA-1',ts:new Date().toISOString()};
-  markers.push(meta); renderAllMarkers(); autosave();
-});
-
-/* render all markers */
-function renderAllMarkers(){
-  markersLayer.clearLayers();
-  markers.forEach(m=>{
-    const el = L.divIcon({html:`<div style="font-size:22px">${mtypes[m.type]?.icon||'📍'}</div>`, className:''});
-    const marker = L.marker([m.lat,m.lng],{icon:el,draggable:true}).addTo(markersLayer);
-    marker.on('click', ()=> openMarkerPopup(m, marker));
-    marker.on('dragend', (ev)=> {
-      const pos = ev.target.getLatLng(); m.lat = pos.lat; m.lng = pos.lng; autosave(); refreshStats();
-    });
-  });
-  refreshStats();
-}
-
-/* open popup with detailed coordinates & actions */
-function openMarkerPopup(m, leaf){
-  const showDD = document.getElementById('show-dd').checked;
-  const showDMS = document.getElementById('show-dms').checked;
-  const showUTM = document.getElementById('show-utm').checked;
-  const showMGRS = document.getElementById('show-mgrs').checked;
-
-  const utm = toUTM(m.lat,m.lng);
-  const mgrs = toMGRS(m.lat,m.lng);
-
-  let html = `<div style="min-width:260px"><div style="font-weight:800">${escapeHtml(m.title)}</div><div class="small">${escapeHtml(m.desc)}</div><div class="small">By ${escapeHtml(m.createdBy)} • ${new Date(m.ts).toLocaleString()}</div><hr/>`;
-  if (showDD) html += `<div><b>DD:</b> <span id="dd-${m.id}" class="mono">${fmtDD(m.lat,m.lng)}</span></div>`;
-  if (showDMS) html += `<div><b>DMS:</b> ${fmtDMS(m.lat,m.lng)}</div>`;
-  if (showUTM) html += `<div><b>UTM:</b> ${utm ? (utm.zone + ' ' + utm.easting + 'mE ' + utm.northing + 'mN') : 'N/A'}</div>`;
-  if (showMGRS) html += `<div><b>MGRS:</b> ${mgrs || 'N/A'}</div>`;
-
-  html += `<div class="pt-2 flex gap-2"><button onclick="copyCoords('${m.id}')" class="btn bg-slate-700 text-white">📋 Copia</button>
-           <button onclick="measureFromMarker('${m.id}')" class="btn bg-red-600 text-white">📏 Misura da qui</button>
-           <button onclick="removeMarker('${m.id}')" class="btn bg-red-700 text-white">Elimina</button></div>`;
-
-  html += `</div>`;
-  leaf.bindPopup(html).openPopup();
-}
-
-/* copy coordinates to clipboard (DD) */
-function copyCoords(id){
-  const m = markers.find(x=>x.id===id); if(!m) return alert('Marker non trovato');
-  const txt = fmtDD(m.lat,m.lng) + ' (DD)\n' + fmtDMS(m.lat,m.lng) + '\nUTM: ' + (toUTM(m.lat,m.lng)? (toUTM(m.lat,m.lng).zone + ' ' + toUTM(m.lat,m.lng).easting + ' ' + toUTM(m.lat,m.lng).northing) : 'N/A') + '\nMGRS: ' + toMGRS(m.lat,m.lng);
-  navigator.clipboard?.writeText(txt).then(()=> alert('Coordinate copiate negli appunti')).catch(()=> alert('Copia non supportata'));
-}
-
-/* remove marker */
-function removeMarker(id){
-  markers = markers.filter(x=> x.id !== id);
-  renderAllMarkers(); autosave();
-}
-
-/* measuring tool: measure between two user-chosen points (markers or map clicks) */
-let measureMode = false;
-let measurePoints = [];
-document.getElementById('tool-measure').addEventListener('click', ()=> {
-  measureMode = true; measurePoints = [];
-  menu.classList.add('hidden');
-  alert('Modalità misura attiva: clicca due punti (su map o su marker) per calcolare distanza e bearing.');
-});
-map.on('click', function(e){
-  if (!measureMode) return;
-  measurePoints.push([e.latlng.lat,e.latlng.lng]);
-  if (measurePoints.length===2) {
-    const [a,b] = measurePoints;
-    displayMeasurement(a,b);
-    measureMode=false;
-  }
-});
-function measureFromMarker(id){
-  const m = markers.find(x=>x.id===id); if(!m) return;
-  if (measurePoints.length===0) measurePoints.push([m.lat,m.lng]);
-  else measurePoints.push([m.lat,m.lng]);
-  if (measurePoints.length===2){ const [a,b]=measurePoints; displayMeasurement(a,b); measurePoints=[]; measureMode=false; }
-}
-function displayMeasurement(a,b){
-  const d = calculateDistance(a[0],a[1],b[0],b[1]);
-  const bearing = bearingBetween(a[0],a[1],b[0],b[1]);
-  const unit = document.getElementById('unit-select').value;
-  const azUnit = document.getElementById('az-unit').value;
-  const azTxt = azUnit==='mils' ? degToMils(bearing) + ' mils' : Math.round(bearing)+'°';
-  distTxt.innerText = metersToUnit(d,unit);
-  statBearing.innerText = azTxt;
-  // draw temporary line
-  L.polyline([a,b],{color:'#f97316', weight:3}).addTo(map).bindPopup(`Dist: ${metersToUnit(d,unit)} • Az: ${azTxt}`).openPopup();
-}
-
-/* range circle */
-document.getElementById('tool-range').addEventListener('click', ()=>{
-  const r = parseFloat(prompt('Raggio (metri)','100'))||100;
-  rangeLayer.clearLayers();
-  if (!breadcrumbs.length) { alert('GPS no position'); return; }
-  const p = breadcrumbs[breadcrumbs.length-1];
-  L.circle([p[0],p[1]],{radius:r,color:'#a78bfa',fillOpacity:0.05}).addTo(rangeLayer);
-  menu.classList.add('hidden');
-});
-
-/* heatmap toggle (optional) */
-let heatEnabled=false; let heatLayer=null;
-function updateHeat(){
-  const pts = markers.map(m=>[m.lat,m.lng,1]).concat(breadcrumbs.map(b=>[b[0],b[1],0.4]));
-  if (heatLayer) map.removeLayer(heatLayer);
-  heatLayer = L.heatLayer(pts, {radius:25, blur:18});
-  if (heatEnabled) heatLayer.addTo(map);
-}
-
-/* export (JSON, GPX, KML + ZIP) */
-document.getElementById('btn-export').addEventListener('click', ()=> {
-  const payload = {markers,areas,breadcrumbs,meta:{ts:new Date().toISOString()}};
-  const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='ametak_export.json'; a.click();
-
-  // GPX and KML quick generation
-  const gpx = generateGPX(payload);
-  const kb = new Blob([gpx],{type:'application/gpx+xml'}); const url2=URL.createObjectURL(kb); const a2=document.createElement('a'); a2.href=url2; a2.download='ametak_export.gpx'; a2.click();
-
-  const kml = generateKML(payload);
-  const kb2=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}); const url3=URL.createObjectURL(kb2); const a3=document.createElement('a'); a3.href=url3; a3.download='ametak_export.kml'; a3.click();
-
-  if (window.JSZip){
-    const zip = new JSZip(); zip.file('ametak.json', JSON.stringify(payload,null,2)); zip.file('ametak.gpx', gpx); zip.file('ametak.kml', kml);
-    zip.generateAsync({type:'blob'}).then(content=>{ const zurl=URL.createObjectURL(content); const az=document.createElement('a'); az.href=zurl; az.download='ametak_export.zip'; az.click(); });
-  }
-});
-function generateGPX(payload){
-  let s = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="AmeTak">`;
-  payload.markers.forEach(m=> s+= `<wpt lat="${m.lat}" lon="${m.lng}"><name>${escapeHtml(m.title)}</name><desc>${escapeHtml(m.desc)}</desc></wpt>`);
-  if (payload.breadcrumbs.length){
-    s+= `<trk><name>breadcrumbs</name><trkseg>`;
-    payload.breadcrumbs.forEach(b=> s+= `<trkpt lat="${b[0]}" lon="${b[1]}"></trkpt>`);
-    s+= `</trkseg></trk>`;
-  }
-  s+= `</gpx>`; return s;
-}
-function generateKML(payload){
-  let s = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>`;
-  payload.markers.forEach(m=> s+= `<Placemark><name>${escapeHtml(m.title)}</name><description>${escapeHtml(m.desc)}</description><Point><coordinates>${m.lng},${m.lat},0</coordinates></Point></Placemark>`);
-  payload.areas.forEach(a=>{ const coords=a.latlngs.map(p=>p.join(',')+',0').join(' '); s+= `<Placemark><Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>` });
-  s+= `</Document></kml>`; return s;
-}
-
-/* import */
-document.getElementById('btn-import').addEventListener('click', ()=> document.getElementById('import-file').click());
-document.getElementById('import-file').addEventListener('change', (e)=> {
-  const f = e.target.files[0]; if(!f) return;
-  const r = new FileReader(); r.onload = ()=> {
-    try {
-      const obj = JSON.parse(r.result);
-      if (obj.markers) obj.markers.forEach(m=> markers.push(m));
-      if (obj.areas) obj.areas.forEach(a=> areas.push(a));
-      if (obj.breadcrumbs) breadcrumbs.push(...obj.breadcrumbs);
-      renderAllMarkers(); areasLayer.clearLayers(); areas.forEach(a=> L.polygon(a.latlngs,{color:'#f59e0b', fillOpacity:0.06}).addTo(areasLayer));
-      breadcrumbsLayer.clearLayers(); breadcrumbs.forEach(b=> L.circleMarker(b,{radius:2,color:'#06b6d4'}).addTo(breadcrumbsLayer));
-      refreshStats(); autosave(); alert('Import completato');
-    } catch(err){ alert('Parse error: '+err.message) }
-  }; r.readAsText(f);
-});
-
-/* clear all */
-document.getElementById('btn-clear').addEventListener('click', ()=> {
-  if (!confirm('Eliminare tutti i dati locali?')) return;
-  markers=[]; areas=[]; breadcrumbs=[]; markersLayer.clearLayers(); areasLayer.clearLayers(); breadcrumbsLayer.clearLayers(); drawnItems.clearLayers(); refreshStats(); autosave();
-});
-
-/* autosave/localStorage */
-function autosave(){ localStorage.setItem('ametak_state', JSON.stringify({markers,areas,breadcrumbs})); }
-(function loadState(){ try{ const raw = localStorage.getItem('ametak_state'); if(raw){ const o=JSON.parse(raw); if(o.markers) markers = o.markers; if(o.areas) areas=o.areas; if(o.breadcrumbs) breadcrumbs=o.breadcrumbs; renderAllMarkers(); areasLayer.clearLayers(); areas.forEach(a=> L.polygon(a.latlngs,{color:'#f59e0b',fillOpacity:0.06}).addTo(areasLayer)); breadcrumbsLayer.clearLayers(); breadcrumbs.forEach(b=> L.circleMarker(b,{radius:2,color:'#06b6d4'}).addTo(breadcrumbsLayer)); refreshStats(); } }catch(e){console.warn(e)} })();
-
-/* utility projection helpers using proj4 & mgrs */
-function toUTM(lat,lng){
-  try {
-    const zone = Math.floor((lng + 180)/6)+1;
-    const proj = '+proj=utm +zone=' + zone + ' +datum=WGS84 +units=m +no_defs';
-    const p = proj4('EPSG:4326', proj, [lng,lat]); // [x,y]
-    return {zone, easting: Math.round(p[0]), northing: Math.round(p[1])};
-  }catch(e){ return null; }
-}
-function toMGRS(lat,lng){ try { return mgrs.forward([lng,lat]); }catch(e){ return 'N/A'; } }
-
-/* render markers after load or change */
-function renderAllMarkers(){
-  markersLayer.clearLayers();
-  markers.forEach(m=>{
-    const el = L.divIcon({html:`<div style="font-size:22px">${mtypes[m.type]?.icon||'📍'}</div>`, className:''});
-    const mk = L.marker([m.lat,m.lng],{icon:el,draggable:true}).addTo(markersLayer);
-    mk.on('click', ()=> openMarkerPopup(m,mk));
-    mk.on('dragend', ev=> { const ll=ev.target.getLatLng(); m.lat=ll.lat; m.lng=ll.lng; autosave(); });
-  });
-  refreshStats();
-}
-
-/* popup open */
-function openMarkerPopup(m,leaf){
-  const showDD = document.getElementById('show-dd').checked;
-  const showDMS = document.getElementById('show-dms').checked;
-  const showUTM = document.getElementById('show-utm').checked;
-  const showMGRS = document.getElementById('show-mgrs').checked;
-  const utm = toUTM(m.lat,m.lng);
-  const mgrs = toMGRS(m.lat,m.lng);
-  let html = `<div style="min-width:240px;"><div style="font-weight:700">${escapeHtml(m.title)}</div><div class="small">${escapeHtml(m.desc)}</div><div class="small">${new Date(m.ts).toLocaleString()}</div><hr/>`;
-  if (showDD) html += `<div><b>DD:</b> ${fmtDD(m.lat,m.lng)}</div>`;
-  if (showDMS) html += `<div><b>DMS:</b> ${fmtDMS(m.lat,m.lng)}</div>`;
-  if (showUTM) html += `<div><b>UTM:</b> ${utm? (utm.zone+' '+utm.easting+'mE '+utm.northing+'mN'):'N/A'}</div>`;
-  if (showMGRS) html += `<div><b>MGRS:</b> ${mgrs}</div>`;
-  html += `<div class="pt-2 flex gap-2"><button class="btn bg-slate-700 text-white" onclick="copyCoords('${m.id}')">📋 Copia</button><button class="btn bg-red-600 text-white" onclick="measureFromMarker('${m.id}')">📏 Misura</button><button class="btn bg-red-700 text-white" onclick="removeMarker('${m.id}')">Elimina</button></div></div>`;
-  leaf.bindPopup(html).openPopup();
-}
-
-/* copy coords */
-function copyCoords(id){
-  const m = markers.find(x=>x.id===id); if(!m) return;
-  const txt = fmtDD(m.lat,m.lng)+'\n'+fmtDMS(m.lat,m.lng)+'\nUTM: '+(toUTM(m.lat,m.lng)? (toUTM(m.lat,m.lng).zone+' '+toUTM(m.lat,m.lng).easting+' '+toUTM(m.lat,m.lng).northing):'N/A') + '\nMGRS: '+toMGRS(m.lat,m.lng);
-  navigator.clipboard?.writeText(txt).then(()=> alert('Coordinate copiate')).catch(()=> alert('Copia non supportata'));
-}
-
-/* measure from marker */
-let measureBuf = [];
-function measureFromMarker(id){
-  const m = markers.find(x=>x.id===id); if(!m) return alert('Marker non trovato');
-  measureBuf.push([m.lat,m.lng]);
-  if (measureBuf.length===2){
-    displayMeasurement(measureBuf[0],measureBuf[1]); measureBuf=[];
-  } else alert('Selezionato primo punto. Seleziona il secondo punto o un altro marker.');
-}
-
-/* display measurement */
-function displayMeasurement(a,b){
-  const d = calculateDistance(a[0],a[1],b[0],b[1]);
-  const bearing = bearingBetween(a[0],a[1],b[0],b[1]);
-  const unit = document.getElementById('unit-select').value;
-  const azUnit = document.getElementById('az-unit').value;
-  const azTxt = azUnit==='mils' ? degToMils(bearing)+' mils' : Math.round(bearing)+'°';
-  distTxt.innerText = metersToUnit(d, unit);
-  statBearing.innerText = azTxt;
-  L.polyline([a,b],{color:'#fb923c',weight:3}).addTo(map).bindPopup(`Dist: ${metersToUnit(d,unit)} • Az: ${azTxt}`).openPopup();
-}
-
-/* refresh stats */
-function refreshStats(){ statMarkers.innerText = markers.length; statAreas.innerText = areas.length; statBc.innerText = breadcrumbs.length; }
-
-/* helper escape */
-function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[c])); }
-
-/* distance Haversine reused */
-function calculateDistance(lat1, lon1, lat2, lon2){
-  const R=6371000; const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
-  const Δφ=(lat2-lat1)*Math.PI/180; const Δλ=(lon2-lon1)*Math.PI/180;
-  const a = Math.sin(Δφ/2)*Math.sin(Δφ/2)+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)*Math.sin(Δλ/2);
-  const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return R*c;
-}
-
-/* compass (device orientation if available) */
-if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-  // iOS requires request
-  DeviceOrientationEvent.requestPermission?.().then(res => {
-    if (res === 'granted') window.addEventListener('deviceorientation', e => { if (e.alpha !== null) { compassEl.style.transform = `rotate(${e.alpha}deg)`; }});
-  }).catch(()=>{ /* ignore */ });
-} else {
-  window.addEventListener('deviceorientation', e => { if (e.alpha !== null) compassEl.style.transform = `rotate(${e.alpha}deg)`; });
-}
-
-/* initial render of stored markers */
-renderAllMarkers();
-areasLayer.clearLayers(); areas.forEach(a=> L.polygon(a.latlngs,{color:'#f59e0b',fillOpacity:0.06}).addTo(areasLayer));
-breadcrumbsLayer.clearLayers(); breadcrumbs.forEach(b=> L.circleMarker(b,{radius:2,color:'#06b6d4'}).addTo(breadcrumbsLayer));
-refreshStats();
-
-/* global expose for popup buttons */
-window.copyCoords = copyCoords;
-window.measureFromMarker = measureFromMarker;
-window.removeMarker = removeMarker;
-
-/* END of script */
 </script>
-
-<!-- NOTES:
- - To enable Mapbox replace base.mapbox layer with Mapbox tile URL and put your key.
- - To compute accurate magnetic declination you can integrate NOAA geomag API (requires web request).
- - This file is standalone and ready to be pushed to GitHub Pages or opened locally
- - If you want, posso:
-     • generare repo ready-to-push (README + .github/workflows)
-     • creare App Android WebView (Kotlin) e file gradle
-     • integrare WebRTC chat or server comms
- -->
 </body>
 </html>

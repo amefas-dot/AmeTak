@@ -1,170 +1,149 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical System PRO</title>
-
-<!-- Leaflet -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<!-- TailwindCSS -->
-<script src="https://cdn.tailwindcss.com"></script>
-
-<style>
-  body, html { margin:0; padding:0; height:100%; }
-  #map { width: 100%; height: 100%; }
-  .menu { position: absolute; top: 10px; right: 10px; width: 300px; max-height: 90%; background: rgba(31, 41, 55, 0.95); color:white; padding: 10px; border-radius: 8px; overflow-y:auto; z-index: 1000; }
-  .menu h2 { font-weight: bold; margin-bottom: 5px; }
-  .leaflet-popup-content-wrapper { background-color: #1f2937; color:white; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tactical System PRO</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.8.0/dist/proj4.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/utm-latlng@1.0.0/utm.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body { height: 100%; margin:0; }
+    #map { height: 100%; width: 100%; }
+    #toolsMenu { position: absolute; top: 10px; right: 10px; z-index: 1000; background: rgba(31, 41, 55, 0.95); color: white; padding: 10px; border-radius: 8px; max-height: 90vh; overflow-y: auto; }
+    #toolsMenu button { margin-bottom: 4px; }
+    .popup-content { font-size: 12px; }
+  </style>
 </head>
 <body>
-
-<div id="map"></div>
-<div class="menu" id="menu">
-  <h2>Tools</h2>
-  <button class="w-full mb-2 bg-blue-600 hover:bg-blue-700 p-2 rounded" id="addMarkerBtn">Aggiungi Marker</button>
-  <button class="w-full mb-2 bg-green-600 hover:bg-green-700 p-2 rounded" id="measureBtn">Misura Distanza</button>
-  <button class="w-full mb-2 bg-purple-600 hover:bg-purple-700 p-2 rounded" id="addAreaBtn">Disegna Area</button>
-  <button class="w-full mb-2 bg-yellow-600 hover:bg-yellow-700 p-2 rounded" id="exportBtn">Esporta JSON</button>
-  <div class="mt-2">
-    <label>Formato Coordinate:</label>
-    <select id="coordFormat" class="w-full bg-gray-800 p-1 rounded">
-      <option value="dd">DD</option>
-      <option value="dms">DMS</option>
-      <option value="dm">DM</option>
-      <option value="utm">UTM</option>
-      <option value="mgrs" selected>MGRS</option>
-    </select>
+  <div id="map"></div>
+  <div id="toolsMenu">
+    <h2 class="font-bold mb-2">TOOLS</h2>
+    <button id="addMarkerBtn" class="w-full bg-blue-600 p-2 rounded mb-1">📍 Aggiungi Marker</button>
+    <button id="drawAreaBtn" class="w-full bg-purple-600 p-2 rounded mb-1">🔷 Disegna Area</button>
+    <button id="measureBtn" class="w-full bg-green-600 p-2 rounded mb-1">📏 Misura Distanza</button>
+    <button id="toggleBreadcrumbsBtn" class="w-full bg-yellow-600 p-2 rounded mb-1">🛤️ Mostra Traccia</button>
+    <button id="exportBtn" class="w-full bg-gray-600 p-2 rounded mb-1">💾 Esporta Dati</button>
+    <div id="pointerInfo" class="mt-2 p-2 bg-gray-700 rounded text-xs"></div>
   </div>
-</div>
 
-<script>
-// Inizializza mappa
-const map = L.map('map').setView([45.0, 12.0], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+  <script>
+    // --- Setup Mappa ---
+    const map = L.map('map').setView([45.4642, 9.19], 13); // default Milano
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
 
-// Storage
-const storage = {
-  get: key => JSON.parse(localStorage.getItem(key) || '[]'),
-  set: (key,val) => localStorage.setItem(key, JSON.stringify(val))
-};
+    // --- Storage ---
+    const storage = {
+      get: (key) => { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } },
+      set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+    };
 
-let markers = storage.get('markers');
-let areas = storage.get('areas');
-let measurePoints = [];
-let tempLine = null;
-let tempArea = null;
-let coordFormat = 'mgrs';
+    // --- Stati principali ---
+    let markers = storage.get('markers');
+    let areas = storage.get('areas');
+    let breadcrumbs = storage.get('breadcrumbs');
+    let measurePoints = [];
+    let drawingArea = false;
+    let measuring = false;
 
-// Funzioni coordinate
-function formatDD(lat,lng){ return lat.toFixed(6)+','+lng.toFixed(6); }
-function formatDMS(lat,lng){
-  const f = d => {
-    const abs = Math.abs(d), deg=Math.floor(abs), m=Math.floor((abs-deg)*60), s=((abs-deg-m/60)*3600).toFixed(2);
-    const dir = d>=0?(deg===lat?'N':'E'):(deg===lat?'S':'W');
-    return `${deg}°${m}'${s}" ${dir}`;
-  };
-  return `${f(lat)} ${f(lng)}`;
-}
-function formatDM(lat,lng){
-  const f = d => {
-    const abs = Math.abs(d), deg=Math.floor(abs), m=((abs-deg)*60).toFixed(4);
-    const dir = d>=0?(deg===lat?'N':'E'):(deg===lat?'S':'W');
-    return `${deg}°${m}' ${dir}`;
-  };
-  return `${f(lat)} ${f(lng)}`;
-}
-function formatUTM(lat,lng){ return `UTM ${lat.toFixed(3)},${lng.toFixed(3)}`; }
-function formatMGRS(lat,lng){ return `MGRS ${lat.toFixed(3)},${lng.toFixed(3)}`; }
-function formatCoord(lat,lng,fmt){ 
-  switch(fmt){ case 'dd': return formatDD(lat,lng);
-  case 'dms': return formatDMS(lat,lng);
-  case 'dm': return formatDM(lat,lng);
-  case 'utm': return formatUTM(lat,lng);
-  case 'mgrs': return formatMGRS(lat,lng);
-  default: return formatMGRS(lat,lng);}
-}
+    // --- Layer groups ---
+    const markersLayer = L.layerGroup().addTo(map);
+    const areasLayer = L.layerGroup().addTo(map);
+    const breadcrumbsLayer = L.layerGroup().addTo(map);
+    const measureLayer = L.layerGroup().addTo(map);
 
-// Aggiorna coordinate formato
-document.getElementById('coordFormat').addEventListener('change', e=>{ coordFormat=e.target.value; });
-
-// Aggiungi marker esistente
-markers.forEach(m=>{ 
-  const mk = L.marker([m.lat,m.lng],{title:m.title}).addTo(map);
-  mk.bindPopup(`<b>${m.title}</b><br>${formatCoord(m.lat,m.lng,coordFormat)}`);
-});
-
-// Tools
-document.getElementById('addMarkerBtn').onclick = ()=>{
-  map.once('click', e=>{
-    const m = {lat:e.latlng.lat,lng:e.latlng.lng,title:'Nuovo Marker'};
-    markers.push(m);
-    storage.set('markers',markers);
-    const mk = L.marker([m.lat,m.lng],{title:m.title}).addTo(map);
-    mk.bindPopup(`<b>${m.title}</b><br>${formatCoord(m.lat,m.lng,coordFormat)}`);
-  });
-};
-
-document.getElementById('measureBtn').onclick = ()=>{
-  measurePoints = [];
-  if(tempLine){ map.removeLayer(tempLine); tempLine=null;}
-  alert('Clicca sulla mappa per aggiungere punti di misura. Doppio clic per completare.');
-  map.on('click', measureClick);
-};
-
-function measureClick(e){
-  measurePoints.push(e.latlng);
-  if(measurePoints.length>1){
-    if(tempLine) map.removeLayer(tempLine);
-    tempLine = L.polyline(measurePoints,{color:'red'}).addTo(map);
-    const dist = measurePoints.reduce((acc,p,i,a)=>{
-      if(i==0) return 0;
-      const R = 6371000;
-      const φ1 = a[i-1].lat*Math.PI/180;
-      const φ2 = p.lat*Math.PI/180;
-      const Δφ = (p.lat-a[i-1].lat)*Math.PI/180;
-      const Δλ = (p.lng-a[i-1].lng)*Math.PI/180;
-      const aCalc = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-      const c = 2*Math.atan2(Math.sqrt(aCalc),Math.sqrt(1-aCalc));
-      return acc+6371000*c;
-    },0);
-    tempLine.bindPopup('Distanza: '+dist.toFixed(2)+' m').openPopup();
-  }
-}
-map.on('dblclick', ()=>{ map.off('click',measureClick); tempLine=null; });
-
-// Aggiungi Area
-document.getElementById('addAreaBtn').onclick = ()=>{
-  let areaPoints = [];
-  if(tempArea){ map.removeLayer(tempArea); tempArea=null;}
-  alert('Clicca sulla mappa per disegnare area. Doppio clic per completare.');
-  map.on('click', e=>{
-    areaPoints.push(e.latlng);
-    if(areaPoints.length>1){
-      if(tempArea) map.removeLayer(tempArea);
-      tempArea = L.polygon(areaPoints,{color:'purple',fillOpacity:0.3}).addTo(map);
+    // --- Funzioni coordinate ---
+    function formatDD(lat,lng){ return `${lat.toFixed(6)}, ${lng.toFixed(6)}`; }
+    function formatDMS(lat,lng){
+      const dms=(deg,isLat)=>{const abs=Math.abs(deg);const d=Math.floor(abs);const m=Math.floor((abs-d)*60);const s=((abs-d-m/60)*3600).toFixed(2);const dir=deg>=0?(isLat?'N':'E'):(isLat?'S':'W'); return `${d}°${m}'${s}" ${dir}`;};
+      return `${dms(lat,true)} ${dms(lng,false)}`;
     }
-  });
-  map.on('dblclick', ()=>{
-    map.off('click');
-    if(areaPoints.length>2){ areas.push(areaPoints); storage.set('areas',areas); }
-    tempArea=null;
-  });
-};
+    function formatDM(lat,lng){const dm=(deg,isLat)=>{const abs=Math.abs(deg);const d=Math.floor(abs);const m=((abs-d)*60).toFixed(4);const dir=deg>=0?(isLat?'N':'E'):(isLat?'S':'W');return `${d}° ${m}' ${dir}`;}; return `${dm(lat,true)} ${dm(lng,false)}`;}
+    function formatUTM(lat,lng){const utm = new UTMLatLng(); const z = utm.convertLatLngToUtm(lat,lng); return `Zone ${z.zoneNum}${z.zoneLetter} ${Math.round(z.easting)}mE ${Math.round(z.northing)}mN`; }
+    function formatMGRS(lat,lng){const utm = new UTMLatLng(); return utm.convertLatLngToMGRS(lat,lng);}
 
-// Export JSON
-document.getElementById('exportBtn').onclick = ()=>{
-  const data = {markers,areas};
-  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download='tactical_export.json'; a.click();
-};
-</script>
+    function showCoords(lat,lng){
+      return `<b>DD:</b> ${formatDD(lat,lng)}<br>
+              <b>DMS:</b> ${formatDMS(lat,lng)}<br>
+              <b>DM:</b> ${formatDM(lat,lng)}<br>
+              <b>UTM:</b> ${formatUTM(lat,lng)}<br>
+              <b>MGRS:</b> ${formatMGRS(lat,lng)}`;
+    }
 
-</body>
-</html>
+    // --- Aggiungi marker ---
+    function addMarker(lat,lng,title="Marker",size=32){
+      const icon = L.divIcon({className:'custom-icon', html:`<div style="font-size:${size}px">📍</div>`});
+      const m = L.marker([lat,lng],{icon}).bindPopup(showCoords(lat,lng)).addTo(markersLayer);
+      markers.push({lat,lng,title});
+      storage.set('markers',markers);
+    }
+
+    // --- Disegna area ---
+    function addArea(points){
+      const poly = L.polygon(points,{color:'purple',fillOpacity:0.2}).bindPopup('Area').addTo(areasLayer);
+      areas.push({points});
+      storage.set('areas',areas);
+    }
+
+    // --- Breadcrumbs ---
+    function addBreadcrumb(lat,lng){
+      const c = L.circleMarker([lat,lng],{radius:3,color:'yellow'}).addTo(breadcrumbsLayer);
+      breadcrumbs.push({lat,lng});
+      storage.set('breadcrumbs',breadcrumbs);
+    }
+
+    // --- Misura distanza ---
+    function addMeasurePoint(lat,lng){
+      measurePoints.push([lat,lng]);
+      L.circleMarker([lat,lng],{radius:4,color:'green'}).addTo(measureLayer);
+      if(measurePoints.length>1){
+        const line=L.polyline(measurePoints,{color:'green'}).addTo(measureLayer);
+        const dist=line.getLatLngs().reduce((acc,curr,i,arr)=>i===0?0:acc+map.distance(curr,arr[i-1]),0);
+        line.bindPopup(`Distanza: ${dist.toFixed(2)} m`);
+      }
+    }
+
+    // --- Puntatore mobile ---
+    const pointerDiv=document.getElementById('pointerInfo');
+    map.on('mousemove',(e)=>{
+      pointerDiv.innerHTML=`<b>Mouse:</b> ${formatDD(e.latlng.lat,e.latlng.lng)}`;
+    });
+
+    // --- Eventi menu ---
+    document.getElementById('addMarkerBtn').onclick=()=>{
+      map.once('click',(e)=>addMarker(e.latlng.lat,e.latlng.lng,"Marker",32));
+    };
+    document.getElementById('drawAreaBtn').onclick=()=>{
+      drawingArea=true;
+      let areaPoints=[];
+      map.on('click',function f(e){
+        areaPoints.push([e.latlng.lat,e.latlng.lng]);
+        if(areaPoints.length>=3){
+          addArea(areaPoints);
+          map.off('click',f);
+          drawingArea=false;
+        }
+      });
+    };
+    document.getElementById('measureBtn').onclick=()=>{
+      measuring=true;
+      measurePoints=[];
+      measureLayer.clearLayers();
+      map.once('click',(e)=>{ addMeasurePoint(e.latlng.lat,e.latlng.lng); measuring=false; });
+    };
+    document.getElementById('toggleBreadcrumbsBtn').onclick=()=>{
+      if(map.hasLayer(breadcrumbsLayer)) map.removeLayer(breadcrumbsLayer);
+      else map.addLayer(breadcrumbsLayer);
+    };
+    document.getElementById('exportBtn').onclick=()=>{
+      const data={markers,areas,breadcrumbs};
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=`tactical_${Date.now()}.json

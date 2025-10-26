@@ -1,144 +1,579 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical System PRO</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AmeTak — Tactical System PRO</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<!-- Leaflet.draw -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+<!-- leaflet.heat for heatmap -->
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+<!-- proj4 and mgrs conversions -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
+<script src="https://unpkg.com/mgrs@1.0.0/mgrs.min.js"></script>
+
+<!-- JSZip for building ZIP on export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<!-- Tailwind UI (for quick styling) -->
 <script src="https://cdn.tailwindcss.com"></script>
+
 <style>
-  html, body { height: 100%; margin: 0; font-family: system-ui; }
-  #map { height: 100%; width: 100%; }
-  .pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;}50%{opacity:0.5;} }
-  .animate-spin { animation: spin 1s linear infinite; }
-  @keyframes spin { 0%{transform:rotate(0deg);}100%{transform:rotate(360deg);} }
+  html,body,#map { height:100%; margin:0; padding:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:#0b1220; color:#e6eef8; }
+  .leaflet-container { height:100%; width:100%; }
+  .ui-panel { background: rgba(17,24,39,0.92); border: 1px solid rgba(255,255,255,0.04); color: #fff; }
+  .notif { position: absolute; right: 16px; top: 88px; z-index: 9999; min-width: 260px; }
+  .chat-box { position: absolute; right: 16px; bottom: 90px; width: 340px; max-height: 56vh; z-index: 9999; }
+  .small-muted { color:#9ca3af; font-size:12px; }
+  .btn { padding:8px 10px; border-radius:6px; cursor:pointer; border: none; }
+  a.small-link { color:#93c5fd; text-decoration:underline; }
+  .legend { font-size:12px; }
 </style>
 </head>
-<body class="bg-gray-900 text-white">
+<body>
 
-<!-- Map -->
-<div id="map"></div>
+<!-- MAP -->
+<div id="map" class="leaflet-container"></div>
 
 <!-- Header -->
-<div class="absolute top-0 left-0 w-full p-2 bg-gray-800 bg-opacity-90 flex justify-between items-center z-50">
-  <div>
-    <span class="text-xl">🎯 Tactical System PRO</span>
+<div class="absolute top-3 left-3 ui-panel p-3 rounded-lg shadow z-1000">
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="text-2xl">🎯</div>
+      <div>
+        <div class="font-semibold">AmeTak — Tactical System PRO</div>
+        <div class="small-muted">Callsign: <span id="callsign">ALPHA-1</span></div>
+      </div>
+    </div>
+    <div id="gpsStatus" class="text-sm small-muted">GPS: <span id="gpsBadge" class="px-2 py-0.5 rounded-full bg-red-600">OFF</span></div>
   </div>
-  <div id="gpsStatus" class="text-sm">GPS: 🔴 Non rilevato</div>
 </div>
 
-<!-- Controls -->
-<div class="absolute top-16 left-2 bg-gray-800 bg-opacity-90 p-2 rounded z-50 space-y-2">
-  <button id="addMarkerBtn" class="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded">📍 Aggiungi Marker</button>
-  <button id="drawAreaBtn" class="w-full p-2 bg-purple-600 hover:bg-purple-700 rounded">🔷 Disegna Area</button>
-  <button id="measureBtn" class="w-full p-2 bg-red-600 hover:bg-red-700 rounded">📏 Misura Distanza</button>
-  <button id="toggleLayersBtn" class="w-full p-2 bg-green-600 hover:bg-green-700 rounded">📊 Layers</button>
-  <button id="chatBtn" class="w-full p-2 bg-yellow-600 hover:bg-yellow-700 rounded">💬 Chat</button>
+<!-- Left toolbar -->
+<div class="absolute top-20 left-3 ui-panel p-3 rounded-lg shadow z-1000 w-64">
+  <div class="space-y-2">
+    <button id="btnAddMarker" class="btn w-full bg-blue-600 hover:bg-blue-700">📍 Aggiungi Marker (posizione)</button>
+
+    <select id="selectMarkerType" class="w-full p-2 rounded bg-gray-800 text-white">
+      <option value="waypoint">📍 Waypoint</option>
+      <option value="objective">🎯 Objective</option>
+      <option value="observation">👁️ Observation</option>
+      <option value="hazard">⚠️ Hazard</option>
+      <option value="friendly">🔵 Friendly</option>
+      <option value="hostile">🔴 Hostile</option>
+      <option value="medic">🏥 Medic</option>
+      <option value="supply">📦 Supply</option>
+      <option value="lz">🚁 LZ</option>
+    </select>
+
+    <div class="flex gap-2">
+      <button id="btnDrawArea" class="btn flex-1 bg-purple-600 hover:bg-purple-700">🔷 Disegna Area</button>
+      <button id="btnMeasure" class="btn bg-red-600 hover:bg-red-700">📏 Misura</button>
+    </div>
+
+    <div class="flex gap-2">
+      <button id="btnRange" class="btn flex-1 bg-indigo-600 hover:bg-indigo-700">⭕ Range</button>
+      <input id="rangeInput" type="number" min="10" value="100" class="w-20 p-1 rounded bg-gray-800 text-white" title="metri"/>
+    </div>
+
+    <div class="pt-2 border-t border-gray-700">
+      <div class="small-muted mb-1">Map Layers</div>
+      <select id="layerSelect" class="w-full p-2 rounded bg-gray-800 text-white">
+        <option value="osm">OpenStreetMap</option>
+        <option value="esri">Esri.WorldImagery (Satellite)</option>
+        <option value="opentopo">OpenTopoMap</option>
+        <option value="stamen">Stamen Toner (contrast)</option>
+        <option value="carto">Carto Voyager</option>
+        <option value="mapbox">Mapbox (API key req.)</option>
+      </select>
+      <div class="mt-2">
+        <label class="flex items-center gap-2"><input id="toggleMarkers" type="checkbox" checked/> Markers</label>
+        <label class="flex items-center gap-2"><input id="toggleAreas" type="checkbox" checked/> Aree</label>
+        <label class="flex items-center gap-2"><input id="toggleBreadcrumbs" type="checkbox" checked/> Breadcrumbs</label>
+      </div>
+    </div>
+
+    <div class="pt-2 border-t border-gray-700">
+      <button id="btnHeat" class="btn w-full bg-amber-600 hover:bg-amber-700">🔥 Heatmap (toggle)</button>
+      <input id="heatRadius" type="range" min="5" max="50" value="25" class="w-full mt-2"/>
+    </div>
+
+    <div class="pt-2 border-t border-gray-700">
+      <button id="btnExport" class="btn w-full bg-emerald-600 hover:bg-emerald-700">💾 Export (JSON/GPX/KML/ZIP)</button>
+      <input id="importFile" type="file" accept=".json,.gpx,.kml" class="w-full mt-2 text-sm"/>
+    </div>
+
+    <div class="pt-2 border-t border-gray-700 small-muted text-xs">
+      <div>Google Maps / Earth: <a id="gmapLink" class="small-link" target="_blank" href="#">apri</a></div>
+      <div>Note: per Mapbox/Google inserire API key nel codice (vedi commento).</div>
+    </div>
+  </div>
 </div>
 
-<!-- Bottom nav -->
-<div class="absolute bottom-0 left-0 w-full bg-gray-800 bg-opacity-90 p-2 flex justify-around z-50">
-  <button class="p-2">📍 Mappa</button>
-  <button class="p-2">💬 Chat</button>
-  <button class="p-2">📊 Layers</button>
-  <button class="p-2">👥 Team</button>
-  <button class="p-2">☰ Menu</button>
+<!-- Right chat -->
+<div class="absolute top-20 right-3 z-1000">
+  <div class="chat-box ui-panel p-2 rounded-lg shadow">
+    <div class="flex items-center justify-between mb-2">
+      <div class="font-semibold">Comms</div>
+      <div id="unreadBadge" class="badge hidden">0</div>
+    </div>
+    <div id="chatMessages" style="height:220px; overflow:auto;" class="text-sm mb-2"></div>
+    <div class="flex gap-2">
+      <input id="chatInput" type="text" placeholder="Scrivi..." class="flex-1 p-2 rounded bg-gray-800 text-white"/>
+      <button id="chatSend" class="btn bg-blue-600 hover:bg-blue-700">Invia</button>
+    </div>
+  </div>
+  <div class="notif" id="notifArea"></div>
+</div>
+
+<!-- Bottom quick info -->
+<div class="absolute bottom-3 left-1/2 transform -translate-x-1/2 ui-panel p-2 rounded-lg shadow z-1000 flex gap-6 items-center">
+  <div class="small-muted">Markers: <span id="countMarkers">0</span></div>
+  <div class="small-muted">Aree: <span id="countAreas">0</span></div>
+  <div class="small-muted">Breadcrumbs: <span id="countBreadcrumbs">0</span></div>
+  <div class="small-muted">Azimut: <span id="azimuth">N/A</span></div>
+  <div class="small-muted">Distanza: <span id="distance">N/A</span></div>
 </div>
 
 <script>
-const map = L.map('map').setView([45.4642, 9.19], 13); // Milano come esempio
+/* ===========================
+   AmeTak - main application
+   ===========================
+   Save this file as index.html and open in browser or host on GitHub Pages.
+   - For Mapbox/Google layers: add API key where indicated below.
+   - Elevation uses Open-Elevation (free) by default.
+   - LocalStorage autosave is enabled.
+   =========================== */
 
-// Tile layer
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
-}).addTo(map);
-
-// State
-let markers = [];
-let areas = [];
-let breadcrumbs = [];
-let measurePoints = [];
-let drawingArea = false;
-let measuring = false;
-
-// Current user
-const currentUser = { id: 'user_' + Date.now(), name: 'Operatore', callsign: 'ALPHA-1' };
-
-// GPS
-const gpsStatus = document.getElementById('gpsStatus');
-if ('geolocation' in navigator) {
-  navigator.geolocation.watchPosition(pos => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    gpsStatus.innerText = `GPS: 🟢 Rilevato (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
-
-    // Breadcrumbs
-    breadcrumbs.push([lat, lng]);
-    if (breadcrumbs.length > 100) breadcrumbs.shift();
-  }, err => {
-    gpsStatus.innerText = `GPS: ❌ Errore`;
-  }, { enableHighAccuracy: true });
+/* --- Utilities --- */
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function formatDD(lat,lng){ return lat.toFixed(6) + ', ' + lng.toFixed(6); }
+function formatDMS(lat, lng){
+  function cdeg(d,isLat){
+    const abs=Math.abs(d);
+    const deg=Math.floor(abs);
+    const m=Math.floor((abs-deg)*60);
+    const s=((abs-deg-m/60)*3600).toFixed(2);
+    const dir=isLat?(d>=0?'N':'S'):(d>=0?'E':'W');
+    return `${deg}°${String(m).padStart(2,'0')}'${String(s).padStart(5,'0')}" ${dir}`;
+  }
+  return cdeg(lat,true)+' '+cdeg(lng,false);
+}
+function degToMils(deg){ return Math.round((deg/360)*6400); }
+function calculateDistance(lat1, lon1, lat2, lon2){
+  const R=6371000; const φ1=lat1*Math.PI/180; const φ2=lat2*Math.PI/180;
+  const Δφ=(lat2-lat1)*Math.PI/180; const Δλ=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(Δφ/2)*Math.sin(Δφ/2)+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)*Math.sin(Δλ/2);
+  const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return R*c;
+}
+function calculateBearing(lat1, lon1, lat2, lon2){
+  const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180, λ1=lon1*Math.PI/180, λ2=lon2*Math.PI/180;
+  const y=Math.sin(λ2-λ1)*Math.cos(φ2);
+  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(λ2-λ1);
+  let θ=Math.atan2(y,x)*180/Math.PI; if(θ<0) θ+=360; return θ;
 }
 
-// Add Marker
-document.getElementById('addMarkerBtn').onclick = () => {
-  if (!breadcrumbs.length) return alert('GPS non rilevato');
-  const latlng = breadcrumbs[breadcrumbs.length-1];
-  const marker = L.marker(latlng, { draggable: true }).addTo(map)
-    .bindPopup(`<b>Waypoint</b><br>${currentUser.callsign}`);
-  markers.push(marker);
+/* --- Proj4 / UTM / MGRS helpers --- */
+function toUTM(lat,lng){
+  try {
+    // Using proj4 default WGS84 -> UTM zone calculation (quick and approximate)
+    const zone = Math.floor((lng + 180) / 6) + 1;
+    const proj = '+proj=utm +zone=' + zone + ' +datum=WGS84 +units=m +no_defs';
+    const p = proj4('EPSG:4326', proj, [lng, lat]); // returns [x,y]
+    return { zone, easting: Math.round(p[0]), northing: Math.round(p[1]) };
+  } catch(e){ return null; }
+}
+function toMGRS(lat,lng){
+  try { return mgrs.forward([lng,lat]); } catch(e){ return 'N/A'; }
+}
+
+/* --- Map and Layers --- */
+const map = L.map('map', { zoomControl:true }).setView([45.4642, 9.19], 13);
+
+/* Base tiles */
+const layers = {
+  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }),
+  esri: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+  opentopo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }),
+  stamen: L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}.png', { maxZoom: 20 }),
+  carto: L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png', { maxZoom: 19 }),
+  // Mapbox placeholder (requires API key)
+  mapbox: null
+};
+/* Note: To enable Mapbox, set layers.mapbox = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=YOUR_MAPBOX_KEY', {...}) */
+
+/* Add default */
+layers.osm.addTo(map);
+
+/* Feature layers */
+const layerMarkers = L.layerGroup().addTo(map);
+const layerAreas = L.layerGroup().addTo(map);
+const layerBreadcrumbs = L.layerGroup().addTo(map);
+const layerRange = L.layerGroup().addTo(map);
+
+/* Heat layer */
+let heatLayer = null;
+let heatEnabled = false;
+
+/* App state for export/import */
+let stateMarkers = []; // objects {id,lat,lng,type,title,desc,createdBy,timestamp}
+let stateAreas = [];   // objects {id,name,latlngs,createdBy,timestamp}
+let breadcrumbs = [];  // [[lat,lng],...]
+let userMarker = null;
+
+/* UI elements */
+const gpsBadge = document.getElementById('gpsBadge');
+const countMarkers = document.getElementById('countMarkers');
+const countAreas = document.getElementById('countAreas');
+const countBreadcrumbs = document.getElementById('countBreadcrumbs');
+const azimuthEl = document.getElementById('azimuth');
+const distanceEl = document.getElementById('distance');
+const notifArea = document.getElementById('notifArea');
+const chatMessagesEl = document.getElementById('chatMessages');
+const unreadBadge = document.getElementById('unreadBadge');
+
+/* Marker types (icons + colors) */
+const markerTypes = {
+  waypoint: { icon:'📍', color:'#3b82f6', label:'Waypoint' },
+  objective: { icon:'🎯', color:'#ef4444', label:'Objective' },
+  observation: { icon:'👁️', color:'#10b981', label:'Observation' },
+  hazard: { icon:'⚠️', color:'#f59e0b', label:'Hazard' },
+  friendly: { icon:'🔵', color:'#06b6d4', label:'Friendly' },
+  hostile: { icon:'🔴', color:'#dc2626', label:'Hostile' },
+  medic: { icon:'🏥', color:'#ef4444', label:'Medic' },
+  supply: { icon:'📦', color:'#8b5cf6', label:'Supply' },
+  lz: { icon:'🚁', color:'#22c55e', label:'LZ' }
 };
 
-// Draw Area
-document.getElementById('drawAreaBtn').onclick = () => {
-  drawingArea = !drawingArea;
-  alert(drawingArea ? 'Modalità disegno area attivata' : 'Modalità disegno area disattivata');
-  if (drawingArea) {
-    let areaPoints = [];
-    map.on('click', function onMapClick(e) {
-      areaPoints.push([e.latlng.lat, e.latlng.lng]);
-      if (areaPoints.length >= 3) {
-        const polygon = L.polygon(areaPoints, { color: 'purple', fillOpacity: 0.2 }).addTo(map);
-        areas.push(polygon);
-        areaPoints = [];
-        map.off('click', onMapClick);
-        drawingArea = false;
-      }
+/* --- GPS / Breadcrumbs --- */
+if ('geolocation' in navigator) {
+  navigator.geolocation.watchPosition(pos => {
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    gpsBadge.innerText = 'ON'; gpsBadge.style.background = '#10b981';
+    document.getElementById('gpsStatus').innerHTML = `GPS: <span class="small-muted">${lat.toFixed(6)}, ${lng.toFixed(6)}</span>`;
+
+    // breadcrumb
+    breadcrumbs.push([lat,lng]);
+    if (breadcrumbs.length > 500) breadcrumbs.shift();
+    refreshBreadcrumbs();
+
+    // user marker
+    if (!userMarker) {
+      userMarker = L.circleMarker([lat,lng], { radius:7, color:'#3b82f6', fillColor:'#3b82f6', fillOpacity:0.8 }).addTo(map);
+      map.setView([lat,lng], 16);
+    } else userMarker.setLatLng([lat,lng]);
+
+  }, err => {
+    gpsBadge.innerText = 'ERR'; gpsBadge.style.background = '#ef4444';
+    document.getElementById('gpsStatus').innerHTML = `GPS: <span class="small-muted">Errore</span>`;
+  }, { enableHighAccuracy:true, maximumAge:1500 });
+} else {
+  gpsBadge.innerText = 'NO'; gpsBadge.style.background = '#ef4444';
+}
+
+/* --- Marker Functions --- */
+function renderMarker(meta){
+  const icon = L.divIcon({ html:`<div style="font-size:22px">${markerTypes[meta.type]?.icon||'📍'}</div>`, className:'' });
+  const m = L.marker([meta.lat, meta.lng], { icon, draggable:true }).addTo(layerMarkers);
+  meta._leaf = m;
+  const popupHTML = `
+    <div style="min-width:220px">
+      <div style="font-weight:700">${escapeHtml(meta.title||markerTypes[meta.type]?.label||'Marker')}</div>
+      <div class="small-muted">${escapeHtml(meta.desc||'')}</div>
+      <div class="small-muted text-xs">By ${escapeHtml(meta.createdBy)} • ${new Date(meta.timestamp).toLocaleString()}</div>
+      <hr class="my-2">
+      <div style="font-family:monospace; font-size:12px;">
+        DD: ${formatDD(meta.lat,meta.lng)}<br>
+        DMS: ${formatDMS(meta.lat,meta.lng)}<br>
+        UTM: ${(() => { const u=toUTM(meta.lat,meta.lng); return u? (u.zone + ' ' + u.easting + 'mE ' + u.northing + 'mN') : 'N/A'; })()}<br>
+        MGRS: ${toMGRS(meta.lat,meta.lng)}
+      </div>
+      <div class="mt-2 flex gap-2">
+        <button onclick="centerOn(${meta.lat},${meta.lng})" class="btn bg-gray-700 p-1 rounded">Centra</button>
+        <button onclick="exportSingleMarker('${meta.id}')" class="btn bg-emerald-600 p-1 rounded">Export</button>
+        <button onclick="removeMarkerById('${meta.id}')" class="btn bg-red-600 p-1 rounded">Elimina</button>
+      </div>
+    </div>`;
+  m.bindPopup(popupHTML);
+  m.on('dragend', e => {
+    const ll = e.target.getLatLng();
+    meta.lat = ll.lat; meta.lng = ll.lng;
+    autosave();
+  });
+  refreshCounts();
+}
+function addMarkerAtUser(type){
+  if (!breadcrumbs.length) { notify('GPS non disponibile', 'error'); return; }
+  const [lat,lng] = breadcrumbs[breadcrumbs.length-1];
+  const id = Date.now() + '-' + Math.floor(Math.random()*9999);
+  const meta = { id, lat, lng, type, title: markerTypes[type]?.label||'Marker', desc:'', createdBy: document.getElementById('callsign').innerText, timestamp: new Date().toISOString() };
+  stateMarkers.push(meta);
+  renderMarker(meta);
+  notify('Marker aggiunto: ' + meta.title, 'info');
+  autosave();
+}
+function removeMarkerById(id){
+  const idx = stateMarkers.findIndex(m => m.id===id);
+  if (idx===-1) return;
+  const meta = stateMarkers[idx];
+  if (meta._leaf) layerMarkers.removeLayer(meta._leaf);
+  stateMarkers.splice(idx,1); refreshCounts(); autosave();
+}
+function centerOn(lat,lng){ map.setView([lat,lng], map.getZoom()); }
+
+/* --- Drawing Areas (Leaflet.draw) --- */
+const drawnItems = new L.FeatureGroup(); map.addLayer(drawnItems);
+const drawControl = new L.Control.Draw({
+  edit: { featureGroup: drawnItems, remove:true },
+  draw: { polyline:false, circle:false, rectangle:false, marker:false, polygon: { allowIntersection:false, showArea:true } }
+});
+map.addControl(drawControl);
+
+map.on(L.Draw.Event.CREATED, function(e){
+  const layer = e.layer;
+  drawnItems.addLayer(layer);
+  if (e.layerType === 'polygon') {
+    const latlngs = layer.getLatLngs()[0].map(p => [p.lat, p.lng]);
+    const meta = { id: Date.now()+'-'+Math.floor(Math.random()*999), name: 'Area ' + (stateAreas.length+1), latlngs, createdBy: document.getElementById('callsign').innerText, timestamp: new Date().toISOString(), _leaf: layer };
+    stateAreas.push(meta);
+    layer.on('click', ()=> layer.bindPopup(`<b>${escapeHtml(meta.name)}</b><div class="small-muted">By ${escapeHtml(meta.createdBy)}</div>`));
+    notify('Area creata: ' + meta.name, 'info'); refreshCounts(); autosave();
+  }
+});
+map.on('draw:edited', function(e){
+  e.layers.eachLayer(layer => {
+    // attempt to find matching area by vertex count
+    const ll = layer.getLatLngs()[0].map(p=>[p.lat,p.lng]);
+    const found = stateAreas.find(a=>a.latlngs.length === ll.length);
+    if (found) { found.latlngs = ll; found._leaf = layer; }
+  });
+  notify('Aree aggiornate', 'info'); autosave();
+});
+map.on('draw:deleted', function(e){
+  e.layers.eachLayer(layer => {
+    const ll = layer.getLatLngs()[0].map(p=>[p.lat,p.lng]);
+    const idx = stateAreas.findIndex(a=>a.latlngs.length === ll.length);
+    if (idx!==-1) stateAreas.splice(idx,1);
+  });
+  notify('Aree rimosse', 'warn'); refreshCounts(); autosave();
+});
+
+/* --- Breadcrumbs render --- */
+function refreshBreadcrumbs(){
+  layerBreadcrumbs.clearLayers();
+  breadcrumbs.forEach(pt => L.circleMarker(pt, { radius:3, color:'#06b6d4' }).addTo(layerBreadcrumbs));
+  refreshCounts();
+}
+
+/* --- Measure (two clicks then measure) --- */
+let measureState = { active:false, pts:[] };
+function toggleMeasure(){
+  measureState.active = !measureState.active; measureState.pts=[];
+  if (measureState.active) { notify('Misurazione attiva: seleziona 2 punti', 'info'); map.getContainer().style.cursor='crosshair'; map.once('click', onMeasureClick); }
+  else { notify('Misurazione disattivata', 'warn'); map.getContainer().style.cursor=''; }
+}
+function onMeasureClick(e){
+  measureState.pts.push([e.latlng.lat,e.latlng.lng]);
+  if (measureState.pts.length===1) { map.once('click', onMeasureClick); notify('Seleziona il secondo punto', 'info'); }
+  else {
+    const [a,b] = measureState.pts;
+    const dist = calculateDistance(a[0],a[1],b[0],b[1]);
+    const bearing = calculateBearing(a[0],a[1],b[0],b[1]);
+    distanceEl.innerText = dist.toFixed(1) + ' m';
+    azimuthEl.innerText = Math.round(bearing) + '° / ' + degToMils(bearing) + ' mils';
+    L.polyline([a,b], { color:'red' }).addTo(map).bindPopup(`Dist: ${dist.toFixed(1)} m`).openPopup();
+    measureState = { active:false, pts:[] }; map.getContainer().style.cursor='';
+    notify('Misurazione completata', 'info');
+  }
+}
+
+/* --- Range circle --- */
+function createRangeCircle(radiusMeters=100){
+  layerRange.clearLayers();
+  if (!breadcrumbs.length) { notify('GPS non disponibile', 'error'); return; }
+  const [lat,lng] = breadcrumbs[breadcrumbs.length-1];
+  const c = L.circle([lat,lng], { radius: radiusMeters, color:'#a78bfa', fillOpacity:0.06 }).addTo(layerRange);
+  notify(`Range circle r=${radiusMeters} m`, 'info');
+}
+
+/* --- Heatmap --- */
+function updateHeatLayer(){
+  const points = stateMarkers.map(m => [m.lat, m.lng, 1]).concat(breadcrumbs.map(b => [b[0], b[1], 0.4]));
+  if (heatLayer) map.removeLayer(heatLayer);
+  heatLayer = L.heatLayer(points, { radius: parseInt(document.getElementById('heatRadius').value || 25), blur:15 }).addTo(map);
+}
+
+/* --- Export / Import --- */
+function openExport(){
+  const payload = { meta:{ts:new Date().toISOString()}, markers:stateMarkers, areas:stateAreas, breadcrumbs };
+  // JSON
+  const j = new Blob([JSON.stringify(payload,null,2)], { type:'application/json' });
+  const jurl = URL.createObjectURL(j);
+  const aj = document.createElement('a'); aj.href=jurl; aj.download='ametak_export.json'; aj.click();
+  // GPX
+  const gpx = generateGPX(payload);
+  const gb = new Blob([gpx], { type:'application/gpx+xml' });
+  const gurl = URL.createObjectURL(gb);
+  const ag = document.createElement('a'); ag.href=gurl; ag.download='ametak_export.gpx'; ag.click();
+  // KML
+  const kml = generateKML(payload);
+  const kb = new Blob([kml], { type:'application/vnd.google-earth.kml+xml' });
+  const kurl = URL.createObjectURL(kb);
+  const ak = document.createElement('a'); ak.href=kurl; ak.download='ametak_export.kml'; ak.click();
+  // ZIP (JSON+GPX+KML)
+  if (window.JSZip) {
+    const zip = new JSZip();
+    zip.file('ametak_export.json', JSON.stringify(payload,null,2));
+    zip.file('ametak_export.gpx', gpx);
+    zip.file('ametak_export.kml', kml);
+    zip.generateAsync({type:'blob'}).then(function(content){
+      const zurl = URL.createObjectURL(content);
+      const az = document.createElement('a'); az.href=zurl; az.download='ametak_export.zip'; az.click();
     });
   }
-};
-
-// Measure distance
-document.getElementById('measureBtn').onclick = () => {
-  measuring = !measuring;
-  alert(measuring ? 'Modalità misurazione attivata' : 'Modalità misurazione disattivata');
-  if (measuring) {
-    let points = [];
-    map.on('click', function onClick(e) {
-      points.push([e.latlng.lat, e.latlng.lng]);
-      if (points.length >= 2) {
-        const line = L.polyline(points, { color: 'red' }).addTo(map);
-        const dist = map.distance(points[0], points[1]);
-        alert(`Distanza: ${dist.toFixed(2)} metri`);
-        points = [];
-        map.off('click', onClick);
-        measuring = false;
-      }
-    });
+  notify('Export generati (JSON/GPX/KML) e zip (se JSZip caricato)', 'info');
+}
+function generateGPX(payload){
+  let s = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="AmeTak">\n`;
+  payload.markers.forEach(m => { s += `<wpt lat="${m.lat}" lon="${m.lng}"><name>${escapeHtml(m.title||'marker')}</name><desc>${escapeHtml(m.desc||'')}</desc></wpt>\n`; });
+  if (payload.breadcrumbs && payload.breadcrumbs.length) {
+    s += `<trk><name>Breadcrumbs</name><trkseg>\n`;
+    payload.breadcrumbs.forEach(p => s += `<trkpt lat="${p[0]}" lon="${p[1]}"></trkpt>\n`);
+    s += `</trkseg></trk>\n`;
   }
-};
+  s += `</gpx>`;
+  return s;
+}
+function generateKML(payload){
+  let s = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>\n`;
+  payload.markers.forEach(m => { s += `<Placemark><name>${escapeHtml(m.title||'marker')}</name><description>${escapeHtml(m.desc||'')}</description><Point><coordinates>${m.lng},${m.lat},0</coordinates></Point></Placemark>\n`; });
+  payload.areas.forEach(a => { const coords = a.latlngs.map(pt=>pt.join(',') + ',0').join(' '); s += `<Placemark><name>${escapeHtml(a.name||'area')}</name><Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n`; });
+  s += `</Document></kml>`; return s;
+}
+function handleImportFile(file){
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const txt = e.target.result;
+    if (file.name.endsWith('.json')) {
+      try { const obj = JSON.parse(txt); importFromJSON(obj); notify('JSON importato', 'info'); } catch(err){ notify('Errore JSON: '+err.message, 'error'); }
+    } else { notify('Import supportato solo per JSON in questa demo (GPX/KML import possibile con parsing aggiuntivo)', 'warn'); }
+  }; reader.readAsText(file);
+}
+function importFromJSON(obj){
+  if (obj.markers) obj.markers.forEach(m => { stateMarkers.push(m); renderMarker(m); });
+  if (obj.areas) obj.areas.forEach(a => { const poly = L.polygon(a.latlngs).addTo(layerAreas); stateAreas.push(Object.assign(a,{_leaf:poly})); });
+  if (obj.breadcrumbs) { breadcrumbs.push(...obj.breadcrumbs); refreshBreadcrumbs(); }
+  refreshCounts(); autosave();
+}
+function exportSingleMarker(id){
+  const m = stateMarkers.find(x=>x.id===id); if (!m) { notify('Marker non trovato', 'error'); return; }
+  const b = new Blob([JSON.stringify(m,null,2)], { type:'application/json' }); const url = URL.createObjectURL(b); const a = document.createElement('a'); a.href=url; a.download='marker_'+id+'.json'; a.click();
+}
 
-// Chat
-document.getElementById('chatBtn').onclick = () => {
-  alert('Chat simulata: i messaggi appariranno qui!');
-};
+/* --- Notifications & Chat --- */
+function notify(text, type='info', ttl=3500){
+  const div = document.createElement('div');
+  div.className = 'p-2 mb-2 rounded shadow';
+  div.style.background = type==='error' ? '#ef4444' : type==='warn' ? '#f59e0b' : '#0ea5a4';
+  div.style.color = '#fff';
+  div.innerText = text;
+  document.getElementById('notifArea').appendChild(div);
+  setTimeout(()=> { try{ document.getElementById('notifArea').removeChild(div); }catch(e){} }, ttl);
+}
+/* Chat local (simulated) */
+document.getElementById('chatSend').addEventListener('click', ()=> {
+  const txt = document.getElementById('chatInput').value.trim(); if(!txt) return;
+  pushChat({from:document.getElementById('callsign').innerText||'User', text:txt}); document.getElementById('chatInput').value='';
+});
+function pushChat(msg){
+  const d = document.createElement('div'); d.className='p-2 mb-1 rounded'; d.style.background='rgba(255,255,255,0.03)'; d.innerHTML = `<strong class="small-muted">${escapeHtml(msg.from)}</strong><div>${escapeHtml(msg.text)}</div><div class="small-muted text-xs">${new Date(msg.ts||Date.now()).toLocaleTimeString()}</div>`;
+  chatMessagesEl.appendChild(d); chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  unreadBadge.innerText = parseInt(unreadBadge.innerText||'0') + 1; unreadBadge.classList.remove('hidden');
+}
 
-// Toggle layers
-document.getElementById('toggleLayersBtn').onclick = () => {
-  alert('Funzione layers da implementare');
-};
+/* --- Autosave to localStorage --- */
+function autosave(){
+  try {
+    const snap = { markers: stateMarkers.map(m=>({id:m.id,lat:m.lat,lng:m.lng,type:m.type,title:m.title,desc:m.desc,createdBy:m.createdBy,timestamp:m.timestamp})), areas: stateAreas.map(a=>({id:a.id,name:a.name,latlngs:a.latlngs,createdBy:a.createdBy,timestamp:a.timestamp})), breadcrumbs };
+    localStorage.setItem('ametak_state', JSON.stringify(snap));
+  } catch(e){ console.warn('Autosave failed', e); }
+}
+/* Load saved */
+(function(){ try { const raw = localStorage.getItem('ametak_state'); if (raw) { const obj=JSON.parse(raw); if (obj.markers) obj.markers.forEach(m=>{ stateMarkers.push(m); renderMarker(m); }); if (obj.areas) obj.areas.forEach(a=>{ const poly=L.polygon(a.latlngs).addTo(layerAreas); stateAreas.push(Object.assign(a,{_leaf:poly})); }); if (obj.breadcrumbs) { breadcrumbs.push(...obj.breadcrumbs); refreshBreadcrumbs(); } refreshCounts(); notify('Dati caricati da memoria locale', 'info'); } } catch(e){ console.warn(e); } })();
+
+/* --- UI binding --- */
+document.getElementById('btnAddMarker').addEventListener('click', ()=> addMarkerAtUser(document.getElementById('selectMarkerType').value));
+document.getElementById('btnDrawArea').addEventListener('click', ()=> { notify('Usa lo strumento Draw in alto a sinistra sulla mappa per disegnare poligoni', 'info'); });
+document.getElementById('btnMeasure').addEventListener('click', ()=> toggleMeasure());
+document.getElementById('btnRange').addEventListener('click', ()=> createRangeCircle(parseFloat(document.getElementById('rangeInput').value||100)));
+document.getElementById('btnHeat').addEventListener('click', ()=> { heatEnabled=!heatEnabled; if (heatEnabled) updateHeatLayer(); else if (heatLayer) map.removeLayer(heatLayer); });
+document.getElementById('btnExport').addEventListener('click', openExport);
+document.getElementById('importFile').addEventListener('change', (e)=> handleImportFile(e.target.files[0]));
+document.getElementById('layerSelect').addEventListener('change', (e)=> {
+  const v=e.target.value; // switch layer
+  Object.values(layers).forEach(l=>{ try{ map.removeLayer(l); }catch(e){} });
+  if (v==='mapbox') { notify('Mapbox selected — insert API key in file to enable', 'warn'); } else { layers[v]?.addTo(map); }
+});
+document.getElementById('heatRadius').addEventListener('input', ()=> { if (heatEnabled) updateHeatLayer(); });
+
+/* toggles */
+document.getElementById('toggleMarkers').addEventListener('change', e=> e.target.checked ? layerMarkers.addTo(map) : map.removeLayer(layerMarkers));
+document.getElementById('toggleAreas').addEventListener('change', e=> e.target.checked ? layerAreas.addTo(map) : map.removeLayer(layerAreas));
+document.getElementById('toggleBreadcrumbs').addEventListener('change', e=> e.target.checked ? layerBreadcrumbs.addTo(map) : map.removeLayer(layerBreadcrumbs));
+
+/* helper refresh counts */
+function refreshCounts(){ document.getElementById('countMarkers').innerText = stateMarkers.length; document.getElementById('countAreas').innerText = stateAreas.length; document.getElementById('countBreadcrumbs').innerText = breadcrumbs.length; }
+
+/* handle file drop to import quickly (optional) */
+document.addEventListener('dragover', e=> e.preventDefault()); document.addEventListener('drop', e=> { e.preventDefault(); if (e.dataTransfer.files && e.dataTransfer.files[0]) handleImportFile(e.dataTransfer.files[0]); });
+
+/* --- Elevation fetch (Open-Elevation) --- */
+async function fetchElevation(lat,lng){
+  try {
+    // Open-Elevation public API (rate-limited). If you have Google Elevation API, replace here.
+    const resp = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+    if (!resp.ok) return null;
+    const j = await resp.json();
+    if (j && j.results && j.results.length) return j.results[0].elevation;
+    return null;
+  } catch(e){ return null; }
+}
+
+/* --- Final UI init --- */
+refreshCounts();
+
+/* OPTIONAL: add link to open current coordinates in Google Maps / Google Earth Web */
+function updateGMapLink(){
+  if (!breadcrumbs.length) { document.getElementById('gmapLink').href = '#'; return; }
+  const [lat,lng] = breadcrumbs[breadcrumbs.length-1];
+  document.getElementById('gmapLink').href = `https://www.google.com/maps/@${lat},${lng},16z`;
+}
+setInterval(updateGMapLink, 2000);
+
+/* END */
 </script>
+
+<!--
+  NOTES & NEXT STEPS:
+  - To enable Mapbox: replace the layers.mapbox placeholder near top with:
+      layers.mapbox = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=YOUR_MAPBOX_KEY', {
+         attribution: ... , id:'mapbox/streets-v11', tileSize:512, zoomOffset:-1
+      });
+    and set layerSelect default accordingly.
+  - For Google Elevation (higher reliability) replace fetchElevation() with calls to Google API (requires API key).
+  - To turn into an Android WebView app:
+    - Wrap this file in a WebView container (Kotlin/Flutter/ReactNative) — I can generate a minimal Kotlin WebView project if you want.
+  - To host on GitHub Pages: push this file to repository root and enable Pages in repo settings (branch: main, folder: /).
+-->
+
 </body>
 </html>

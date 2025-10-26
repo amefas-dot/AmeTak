@@ -4,118 +4,141 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tactical System PRO</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  html, body, #map { height: 100%; margin:0; padding:0; }
+  html, body { height: 100%; margin: 0; font-family: system-ui; }
+  #map { height: 100%; width: 100%; }
+  .pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;}50%{opacity:0.5;} }
+  .animate-spin { animation: spin 1s linear infinite; }
+  @keyframes spin { 0%{transform:rotate(0deg);}100%{transform:rotate(360deg);} }
 </style>
 </head>
-<body>
+<body class="bg-gray-900 text-white">
+
+<!-- Map -->
 <div id="map"></div>
 
+<!-- Header -->
+<div class="absolute top-0 left-0 w-full p-2 bg-gray-800 bg-opacity-90 flex justify-between items-center z-50">
+  <div>
+    <span class="text-xl">🎯 Tactical System PRO</span>
+  </div>
+  <div id="gpsStatus" class="text-sm">GPS: 🔴 Non rilevato</div>
+</div>
+
+<!-- Controls -->
+<div class="absolute top-16 left-2 bg-gray-800 bg-opacity-90 p-2 rounded z-50 space-y-2">
+  <button id="addMarkerBtn" class="w-full p-2 bg-blue-600 hover:bg-blue-700 rounded">📍 Aggiungi Marker</button>
+  <button id="drawAreaBtn" class="w-full p-2 bg-purple-600 hover:bg-purple-700 rounded">🔷 Disegna Area</button>
+  <button id="measureBtn" class="w-full p-2 bg-red-600 hover:bg-red-700 rounded">📏 Misura Distanza</button>
+  <button id="toggleLayersBtn" class="w-full p-2 bg-green-600 hover:bg-green-700 rounded">📊 Layers</button>
+  <button id="chatBtn" class="w-full p-2 bg-yellow-600 hover:bg-yellow-700 rounded">💬 Chat</button>
+</div>
+
+<!-- Bottom nav -->
+<div class="absolute bottom-0 left-0 w-full bg-gray-800 bg-opacity-90 p-2 flex justify-around z-50">
+  <button class="p-2">📍 Mappa</button>
+  <button class="p-2">💬 Chat</button>
+  <button class="p-2">📊 Layers</button>
+  <button class="p-2">👥 Team</button>
+  <button class="p-2">☰ Menu</button>
+</div>
+
 <script>
-let map = L.map('map').setView([45.0, 12.0], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
+const map = L.map('map').setView([45.4642, 9.19], 13); // Milano come esempio
+
+// Tile layer
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
 }).addTo(map);
 
-let userMarker = null;
-let breadcrumbs = [];
-let breadcrumbLayer = L.layerGroup().addTo(map);
+// State
 let markers = [];
 let areas = [];
-let areaLayer = L.layerGroup().addTo(map);
+let breadcrumbs = [];
+let measurePoints = [];
 let drawingArea = false;
-let areaPoints = [];
+let measuring = false;
 
-// GPS tracking
-if (navigator.geolocation) {
+// Current user
+const currentUser = { id: 'user_' + Date.now(), name: 'Operatore', callsign: 'ALPHA-1' };
+
+// GPS
+const gpsStatus = document.getElementById('gpsStatus');
+if ('geolocation' in navigator) {
   navigator.geolocation.watchPosition(pos => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+    gpsStatus.innerText = `GPS: 🟢 Rilevato (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
 
-    if (!userMarker) {
-      userMarker = L.circleMarker([lat,lng], {radius:6, color:'blue'}).addTo(map);
-      map.setView([lat,lng], 16);
-    } else {
-      userMarker.setLatLng([lat,lng]);
-    }
-
-    breadcrumbs.push([lat,lng]);
+    // Breadcrumbs
+    breadcrumbs.push([lat, lng]);
     if (breadcrumbs.length > 100) breadcrumbs.shift();
-    breadcrumbLayer.clearLayers();
-    breadcrumbs.forEach(p => L.circleMarker(p, {radius:4,color:'cyan'}).addTo(breadcrumbLayer));
-
-  }, err => alert('Errore GPS: '+err.message), {enableHighAccuracy:true});
+  }, err => {
+    gpsStatus.innerText = `GPS: ❌ Errore`;
+  }, { enableHighAccuracy: true });
 }
 
-// Add marker at current position
-function addMarker(type='waypoint') {
-  if (!userMarker) return;
-  const latlng = userMarker.getLatLng();
-  const iconMap = {
-    waypoint:'📍',
-    hazard:'⚠️'
-  };
-  const m = L.marker(latlng, {
-    title:type
-  }).bindPopup(iconMap[type] + ' ' + type).addTo(map);
-  markers.push(m);
-}
+// Add Marker
+document.getElementById('addMarkerBtn').onclick = () => {
+  if (!breadcrumbs.length) return alert('GPS non rilevato');
+  const latlng = breadcrumbs[breadcrumbs.length-1];
+  const marker = L.marker(latlng, { draggable: true }).addTo(map)
+    .bindPopup(`<b>Waypoint</b><br>${currentUser.callsign}`);
+  markers.push(marker);
+};
 
-// Toggle area drawing
-function toggleArea() { drawingArea=!drawingArea; if(!drawingArea) areaPoints=[]; }
-
-// Complete area
-function completeArea() {
-  if(areaPoints.length<3) return alert('Serve almeno 3 punti');
-  const polygon = L.polygon(areaPoints, {color:'yellow',fillOpacity:0.2}).addTo(areaLayer);
-  areas.push(polygon);
-  areaPoints = [];
-  drawingArea=false;
-}
-
-// Click on map for area points
-map.on('click', e=>{
-  if(drawingArea) {
-    areaPoints.push([e.latlng.lat,e.latlng.lng]);
-    L.circleMarker(e.latlng,{radius:4,color:'yellow'}).addTo(areaLayer);
+// Draw Area
+document.getElementById('drawAreaBtn').onclick = () => {
+  drawingArea = !drawingArea;
+  alert(drawingArea ? 'Modalità disegno area attivata' : 'Modalità disegno area disattivata');
+  if (drawingArea) {
+    let areaPoints = [];
+    map.on('click', function onMapClick(e) {
+      areaPoints.push([e.latlng.lat, e.latlng.lng]);
+      if (areaPoints.length >= 3) {
+        const polygon = L.polygon(areaPoints, { color: 'purple', fillOpacity: 0.2 }).addTo(map);
+        areas.push(polygon);
+        areaPoints = [];
+        map.off('click', onMapClick);
+        drawingArea = false;
+      }
+    });
   }
-});
+};
 
-// Simple layer toggle
-function toggleLayer(layerName){
-  if(layerName==='markers') markers.forEach(m => map.hasLayer(m)?map.removeLayer(m):m.addTo(map));
-  if(layerName==='breadcrumbs') map.hasLayer(breadcrumbLayer)?map.removeLayer(breadcrumbLayer):breadcrumbLayer.addTo(map);
-  if(layerName==='areas') map.hasLayer(areaLayer)?map.removeLayer(areaLayer):areaLayer.addTo(map);
-}
+// Measure distance
+document.getElementById('measureBtn').onclick = () => {
+  measuring = !measuring;
+  alert(measuring ? 'Modalità misurazione attivata' : 'Modalità misurazione disattivata');
+  if (measuring) {
+    let points = [];
+    map.on('click', function onClick(e) {
+      points.push([e.latlng.lat, e.latlng.lng]);
+      if (points.length >= 2) {
+        const line = L.polyline(points, { color: 'red' }).addTo(map);
+        const dist = map.distance(points[0], points[1]);
+        alert(`Distanza: ${dist.toFixed(2)} metri`);
+        points = [];
+        map.off('click', onClick);
+        measuring = false;
+      }
+    });
+  }
+};
 
-// Simple chat simulation
-let chatMessages = [];
-function addChat(msg){
-  chatMessages.push(msg);
-  console.log('CHAT:', msg);
-}
+// Chat
+document.getElementById('chatBtn').onclick = () => {
+  alert('Chat simulata: i messaggi appariranno qui!');
+};
 
-// Controls
-L.control.custom = L.Control.extend({
-  onAdd: function(map){
-    const div = L.DomUtil.create('div','bg-gray-800 p-2 rounded text-white');
-    div.innerHTML = `
-      <button onclick="addMarker('waypoint')" class="block m-1 bg-blue-600 p-1 rounded w-full">📍 Waypoint</button>
-      <button onclick="addMarker('hazard')" class="block m-1 bg-red-600 p-1 rounded w-full">⚠️ Hazard</button>
-      <button onclick="toggleArea()" class="block m-1 bg-green-600 p-1 rounded w-full">🔷 Disegna Area</button>
-      <button onclick="completeArea()" class="block m-1 bg-yellow-600 p-1 rounded w-full">✅ Completa Area</button>
-      <button onclick="toggleLayer('markers')" class="block m-1 bg-gray-400 p-1 rounded w-full text-black">Toggle Markers</button>
-      <button onclick="toggleLayer('breadcrumbs')" class="block m-1 bg-gray-400 p-1 rounded w-full text-black">Toggle Breadcrumbs</button>
-      <button onclick="toggleLayer('areas')" class="block m-1 bg-gray-400 p-1 rounded w-full text-black">Toggle Aree</button>
-      <button onclick="addChat('Messaggio Test')" class="block m-1 bg-gray-500 p-1 rounded w-full text-black">💬 Chat</button>
-    `;
-    return div;
-  }, onRemove: function(map){}
-});
-(new L.control.custom({position:'topright'})).addTo(map);
+// Toggle layers
+document.getElementById('toggleLayersBtn').onclick = () => {
+  alert('Funzione layers da implementare');
+};
 </script>
 </body>
 </html>

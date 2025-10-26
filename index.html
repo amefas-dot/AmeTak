@@ -1,189 +1,169 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#111827">
-  <title>Tactical System PRO</title>
-
-  <!-- React 18 UMD -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    body, html { margin:0; padding:0; width:100%; height:100%; font-family:system-ui, -apple-system; background:#111827; color:white; }
-    #root { width:100%; height:100%; }
-    .animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tactical System PRO</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+html, body, #root { margin:0; padding:0; height:100%; width:100%; font-family:system-ui; }
+.leaflet-container { height: 100%; width: 100%; }
+</style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
 
-    // Storage helper
-    const storage = {
-      get: (key) => { try { const val = localStorage.getItem(key); return val ? JSON.parse(val) : null; } catch { return null; } },
-      set: (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } }
-    };
+// Marker types
+const markerTypes = {
+  waypoint: { icon: '📍', color: '#3b82f6' },
+  objective: { icon: '🎯', color: '#ef4444' },
+  observation: { icon: '👁️', color: '#10b981' },
+  hazard: { icon: '⚠️', color: '#f59e0b' },
+  friendly: { icon: '🔵', color: '#06b6d4' },
+  hostile: { icon: '🔴', color: '#dc2626' },
+  unknown: { icon: '❓', color: '#6b7280' },
+  medic: { icon: '🏥', color: '#ef4444' },
+  supply: { icon: '📦', color: '#8b5cf6' },
+  lz: { icon: '🚁', color: '#22c55e' }
+};
 
-    const TacticalApp = () => {
-      const [userLocation, setUserLocation] = useState(null);
-      const [markers, setMarkers] = useState([]);
-      const [messages, setMessages] = useState([]);
-      const [routes, setRoutes] = useState([]);
-      const [areas, setAreas] = useState([]);
-      const [breadcrumbs, setBreadcrumbs] = useState([]);
-      const [teamMembers, setTeamMembers] = useState([]);
-
-      const [showMenu, setShowMenu] = useState(false);
-      const [showChat, setShowChat] = useState(false);
-      const [showLayers, setShowLayers] = useState(false);
-      const [selectedMarker, setSelectedMarker] = useState(null);
-      const [addingMarker, setAddingMarker] = useState(false);
-      const [measuringDistance, setMeasuringDistance] = useState(false);
-      const [drawingArea, setDrawingArea] = useState(false);
-
-      const [coordFormat, setCoordFormat] = useState('mgrs');
-      const [datum, setDatum] = useState('wgs84');
-      const [northReference, setNorthReference] = useState('true');
-      const [azimuthFormat, setAzimuthFormat] = useState('mils');
-      const [mapLayer, setMapLayer] = useState('topo');
-      const [heading, setHeading] = useState(0);
-      const [magneticDeclination, setMagneticDeclination] = useState(0);
-      const [gridConvergence, setGridConvergence] = useState(0);
-      const [isEncrypted, setIsEncrypted] = useState(true);
-
-      const [markerForm, setMarkerForm] = useState({ title: '', description: '', type: 'waypoint' });
-      const [chatMessage, setChatMessage] = useState('');
-      const [measurePoints, setMeasurePoints] = useState([]);
-      const [areaPoints, setAreaPoints] = useState([]);
-
-      const [activeLayers, setActiveLayers] = useState({
-        team: true,
-        markers: true,
-        routes: true,
-        areas: true,
-        breadcrumbs: true,
-        rangeCircles: false
-      });
-
-      const [currentUser] = useState({ id: 'user_' + Date.now(), name: 'Operatore', callsign: 'ALPHA-1' });
-      const watchIdRef = useRef(null);
-
-      const markerTypes = {
-        waypoint: { icon: '📍', label: 'Waypoint', color: '#3b82f6' },
-        objective: { icon: '🎯', label: 'Obiettivo', color: '#ef4444' },
-        observation: { icon: '👁️', label: 'Osservazione', color: '#10b981' },
-        hazard: { icon: '⚠️', label: 'Pericolo', color: '#f59e0b' },
-        friendly: { icon: '🔵', label: 'Forze Amiche', color: '#06b6d4' },
-        hostile: { icon: '🔴', label: 'Forze Ostili', color: '#dc2626' },
-        unknown: { icon: '❓', label: 'Sconosciuto', color: '#6b7280' },
-        medic: { icon: '🏥', label: 'Medico', color: '#ef4444' },
-        supply: { icon: '📦', label: 'Rifornimenti', color: '#8b5cf6' },
-        lz: { icon: '🚁', label: 'Landing Zone', color: '#22c55e' }
+// Coordinate formats
+function formatCoordinates(lat, lng, format='dd') {
+  switch(format) {
+    case 'dd': return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    case 'dms':
+      const deg2dms = (d, isLat)=>{
+        const abs = Math.abs(d);
+        const deg = Math.floor(abs);
+        const min = Math.floor((abs - deg) * 60);
+        const sec = ((abs - deg - min/60) * 3600).toFixed(2);
+        const dir = d>=0 ? (isLat?'N':'E'):(isLat?'S':'W');
+        return `${deg}°${min}'${sec}" ${dir}`;
       };
+      return `${deg2dms(lat,true)} ${deg2dms(lng,false)}`;
+    default: return `${lat}, ${lng}`;
+  }
+}
 
-      // Load saved data
-      useEffect(() => {
-        const data = storage.get('tactical-pro-data');
-        if (data) {
-          setMarkers(data.markers || []);
-          setMessages(data.messages || []);
-          setRoutes(data.routes || []);
-          setAreas(data.areas || []);
-          setBreadcrumbs(data.breadcrumbs || []);
-        }
-      }, []);
+// Distance between points in meters
+function calculateDistance(lat1,lng1,lat2,lng2){
+  const R=6371000;
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lng2-lng1) * Math.PI/180;
+  const a=Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
 
-      // Save data
-      useEffect(() => {
-        storage.set('tactical-pro-data', { markers, messages, routes, areas, breadcrumbs });
-      }, [markers, messages, routes, areas, breadcrumbs]);
+// Main App
+const TacticalApp = () => {
+  const [userLocation,setUserLocation] = useState(null);
+  const [markers,setMarkers] = useState([]);
+  const [breadcrumbs,setBreadcrumbs] = useState([]);
+  const [areas,setAreas] = useState([]);
+  const [chat,setChat] = useState([]);
+  const [activeLayers,setActiveLayers] = useState({markers:true,breadcrumbs:true,areas:true});
+  const [drawingArea,setDrawingArea] = useState(false);
+  const [areaPoints,setAreaPoints] = useState([]);
+  const [coordFormat,setCoordFormat] = useState('dd');
+  const mapRef = useRef(null);
+  const currentUser = {id:'user_'+Date.now(),callsign:'ALPHA-1'};
 
-      // GPS watch
-      useEffect(() => {
-        if ('geolocation' in navigator) {
-          watchIdRef.current = navigator.geolocation.watchPosition(
-            (position) => {
-              const newLoc = { lat: position.coords.latitude, lng: position.coords.longitude, timestamp: Date.now() };
-              setUserLocation(newLoc);
-              if (position.coords.speed > 0.5) {
-                setBreadcrumbs(prev => [...prev.slice(-100), newLoc]);
-              }
-            },
-            (err) => console.error('GPS:', err),
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-          );
-        }
-        return () => { if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current); };
-      }, []);
+  // Init map
+  useEffect(()=>{
+    mapRef.current = L.map('map',{zoomControl:true});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM'}).addTo(mapRef.current);
+  },[]);
 
-      // Heading simulation
-      useEffect(() => {
-        const interval = setInterval(() => setHeading(prev => (prev + 5) % 360), 500);
-        return () => clearInterval(interval);
-      }, []);
+  // GPS tracking
+  useEffect(()=>{
+    if(!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(pos=>{
+      const loc = {lat:pos.coords.latitude,lng:pos.coords.longitude};
+      setUserLocation(loc);
+      setBreadcrumbs(prev=>[...prev,loc].slice(-100));
+      if(mapRef.current) mapRef.current.setView(loc,mapRef.current.getZoom()||16);
+    },err=>console.error(err),{enableHighAccuracy:true});
+    return ()=>navigator.geolocation.clearWatch(watchId);
+  },[]);
 
-      // Messaging
-      const sendMessage = (text, type='user') => {
-        const msg = { id: Date.now(), text, sender: type==='user'?currentUser.callsign:'SYSTEM', timestamp:new Date().toISOString(), type, encrypted:isEncrypted };
-        setMessages([...messages, msg]);
-      };
-      const handleSendMessage = () => { if(chatMessage.trim()){ sendMessage(chatMessage); setChatMessage(''); }};
+  // Add marker
+  const addMarker = (type='waypoint')=>{
+    if(!userLocation) return;
+    const m = {...userLocation,id:Date.now(),type};
+    setMarkers([...markers,m]);
+    setChat([...chat,{text:`📍 Marker aggiunto: ${type}`}]);
+  };
 
-      return (
-        <div className="h-screen w-screen flex flex-col bg-gray-900 text-white overflow-hidden">
-          {/* Header */}
-          <div className="bg-gray-800 p-2 flex justify-between items-center">
-            <div className="font-bold text-lg">Tactical System PRO</div>
-            <div>{currentUser.callsign} {isEncrypted && '🔒'}</div>
-          </div>
+  // Map click for area drawing
+  const handleMapClick = (e)=>{
+    if(drawingArea) setAreaPoints([...areaPoints,e.latlng]);
+  };
+  const completeArea = ()=>{
+    if(areaPoints.length>=3){
+      setAreas([...areas,{id:Date.now(),points:areaPoints,name:`Area ${areas.length+1}`}]);
+      setAreaPoints([]); setDrawingArea(false);
+      setChat([...chat,{text:`🔷 Area creata`}]);
+    }
+  };
 
-          {/* Map */}
-          <div className="flex-1 relative bg-green-800">
-            {/* User Marker */}
-            {userLocation && (
-              <div className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-white animate-pulse"
-                   style={{ top: `${userLocation.lat}%`, left: `${userLocation.lng}%`, transform: `translate(-50%,-50%) rotate(${heading}deg)` }}>
-              </div>
-            )}
+  // Export JSON
+  const exportJSON = ()=>{
+    const data={markers,breadcrumbs,areas};
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`tactical_${Date.now()}.json`;a.click();
+  };
 
-            {/* Markers */}
-            {activeLayers.markers && markers.map((m,i)=>(
-              <div key={m.id} className="absolute text-2xl cursor-pointer"
-                   style={{ top:`${35+(i*8)%40}%`, left:`${35+(i*10)%50}%`, transform:'translate(-50%,-50%)' }}
-                   onClick={()=>setSelectedMarker(m)}>
-                {markerTypes[m.type]?.icon || '📍'}
-              </div>
-            ))}
+  // Render layers on map
+  useEffect(()=>{
+    if(!mapRef.current) return;
+    mapRef.current.eachLayer(l=>{if(l.options&&l.options.pane==='overlayPane') mapRef.current.removeLayer(l);});
+    if(activeLayers.markers) markers.forEach(m=>{
+      const icon=L.divIcon({className:'',html:`<span style="font-size:24px">${markerTypes[m.type].icon}</span>`});
+      L.marker([m.lat,m.lng],{icon}).addTo(mapRef.current);
+    });
+    if(activeLayers.breadcrumbs) breadcrumbs.forEach(p=>L.circleMarker([p.lat,p.lng],{radius:4,color:'cyan',opacity:0.5}).addTo(mapRef.current));
+    if(activeLayers.areas) areas.forEach(a=>{
+      const latlngs=a.points.map(p=>[p.lat,p.lng]);
+      L.polygon(latlngs,{color:'yellow',fillOpacity:0.1}).addTo(mapRef.current);
+    });
+  },[markers,breadcrumbs,areas,activeLayers]);
 
-            {/* Breadcrumbs */}
-            {activeLayers.breadcrumbs && breadcrumbs.map((p,i)=>(
-              <div key={i} className="absolute w-1.5 h-1.5 bg-cyan-400 rounded-full opacity-50"
-                   style={{ top:`${45+(i%10)*2}%`, left:`${45+(i%8)*2}%` }}></div>
-            ))}
-          </div>
+  return (
+    <div className="h-full w-full relative flex flex-col">
+      <div id="map" className="flex-1" onClick={handleMapClick}></div>
 
-          {/* Footer / quick info */}
-          <div className="bg-gray-800 p-2 flex justify-between text-xs">
-            <div>Markers: {markers.length}</div>
-            <div>Aree: {areas.length}</div>
-            <div>Msg: {messages.length}</div>
-          </div>
-        </div>
-      );
-    };
+      {/* Controls */}
+      <div className="absolute top-2 left-2 bg-gray-800 bg-opacity-80 p-2 rounded space-y-1 text-xs">
+        <button className="bg-blue-600 p-1 rounded text-white w-full" onClick={()=>addMarker('waypoint')}>📍 Waypoint</button>
+        <button className="bg-red-600 p-1 rounded text-white w-full" onClick={()=>addMarker('hazard')}>⚠️ Hazard</button>
+        <button className="bg-green-600 p-1 rounded text-white w-full" onClick={()=>setDrawingArea(!drawingArea)}>
+          {drawingArea?'✕ Cancella Disegno':'🔷 Disegna Area'}
+        </button>
+        {drawingArea && <button className="bg-yellow-600 p-1 rounded text-white w-full" onClick={completeArea}>✅ Completa Area</button>}
+        <button className="bg-gray-400 p-1 rounded w-full text-black" onClick={()=>setActiveLayers({...activeLayers,markers:!activeLayers.markers})}>
+          {activeLayers.markers?'Nascondi Markers':'Mostra Markers'}
+        </button>
+        <button className="bg-gray-400 p-1 rounded w-full text-black" onClick={exportJSON}>💾 Export JSON</button>
+        <button className="bg-gray-400 p-1 rounded w-full text-black" onClick={()=>setCoordFormat(coordFormat==='dd'?'dms':'dd')}>
+          {coordFormat==='dd'?'Mostra DMS':'Mostra DD'}
+        </button>
+      </div>
 
-    // React 18 root
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<TacticalApp />);
-  </script>
-</body>
-</html>
+      {/* Chat */}
+      <div className="absolute bottom-2 left-2 w-72 max-h-48 overflow-y-auto bg-gray-800 bg-opacity-90 p-2 rounded text-xs space-y-1">
+        {chat.map((m,i)=><div key={i}>{m.text}</div>)}
+      </div>
+    </div>
+  );

@@ -1,781 +1,156 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>AmeTak — Tactical Map PRO (Browser)</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<style>
-  :root{
-    --bg:#0f1724; --panel:#1f2937; --muted:#9ca3af; --accent:#10b981; --warn:#f59e0b;
-  }
-  html,body{height:100%;margin:0;font-family:system-ui, -apple-system, Roboto, "Helvetica Neue", Arial;background:var(--bg);color:#fff;}
-  #map{position:absolute;inset:0;z-index:0;}
-  /* header */
-  .header{position:absolute;top:8px;left:12px;right:12px;height:44px;background:rgba(17,24,39,0.85);display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:8px;z-index:1500;border:1px solid rgba(255,255,255,0.03);}
-  .title{display:flex;gap:10px;align-items:center}
-  .title h1{font-size:14px;margin:0}
-  .title small{color:var(--muted);display:block;font-size:11px}
-  .header .actions{display:flex;gap:8px;align-items:center}
-  .btn{background:#374151;border:none;color:#fff;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:14px}
-  .btn:active{transform:translateY(1px)}
-  /* info panel */
-  .info-panel{position:absolute;left:12px;top:60px;width:360px;max-width:calc(100% - 24px);background:rgba(17,24,39,0.9);padding:10px;border-radius:8px;z-index:1400;border:1px solid rgba(255,255,255,0.03)}
-  .row{display:flex;gap:8px}
-  .col{flex:1}
-  .label{font-size:11px;color:var(--muted);margin-bottom:6px}
-  select,input{width:100%;padding:6px;border-radius:6px;background:#0b1220;border:1px solid rgba(255,255,255,0.04);color:#fff}
-  .coords-box{background:#071126;padding:8px;border-radius:6px;font-family:monospace;font-size:13px;color:var(--accent);word-break:break-all}
-  /* crosshair center */
-  .crosshair{
-    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:900;
-  }
-  .crosshair .x, .crosshair .y{background:transparent}
-  .crosshair .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 4px 12px rgba(16,185,129,0.15)}
-  .coord-pointer{position:fixed;left:12px;bottom:12px;background:rgba(7,11,18,0.9);padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);font-family:monospace;font-size:13px;z-index:1600;color:#fff}
-  /* controls right-bottom */
-  .controls{position:fixed;right:12px;bottom:12px;display:flex;flex-direction:column;gap:10px;z-index:1600}
-  .circle-btn{width:48px;height:48px;border-radius:50%;background:#111827;border:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer}
-  .circle-btn.active{background:var(--accent);color:#06281b}
-  /* right menu */
-  .menu{position:fixed;right:-360px;top:60px;width:360px;height:calc(100% - 80px);background:rgba(7,11,18,0.96);padding:12px;border-radius:10px 0 0 10px;box-shadow:-20px 0 30px rgba(0,0,0,0.6);z-index:1550;transition:right 0.28s}
-  .menu.open{right:0}
-  .menu h3{margin:0 0 8px 0;font-size:16px}
-  .menu-section{margin-bottom:12px}
-  .list{max-height:200px;overflow:auto;padding:6px;border-radius:6px;background:rgba(255,255,255,0.02)}
-  .list-item{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.02);display:flex;justify-content:space-between;align-items:center}
-  .small{font-size:12px;color:var(--muted)}
-  /* modal */
-  .modal-back{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:1700}
-  .modal{background:#071126;padding:14px;border-radius:10px;min-width:280px;border:1px solid rgba(255,255,255,0.04)}
-  .modal input, .modal textarea, .modal select{width:100%;margin-bottom:8px}
-  .tools-row{display:flex;gap:8px}
-  /* responsive */
-  @media(max-width:720px){
-    .info-panel{left:10px;right:10px;top:56px;width:auto}
-    .menu{width:92%;max-width:400px}
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AmeTak Map</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    /* Crocicchio al centro */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+      margin-top: -10px;
+      border: 2px solid red;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10;
+    }
+    /* Coordinate in basso a sinistra */
+    #coords {
+      position: absolute;
+      bottom: 15px;
+      left: 15px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      z-index: 11;
+    }
+    /* Pulsante posizione in basso a destra */
+    #locateBtn {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      background: white;
+      border-radius: 50%;
+      border: 2px solid #555;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 11;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    #locateBtn:hover {
+      background: #eee;
+    }
+    /* Menù laterale (vuoto) */
+    #menu {
+      position: absolute;
+      top: 0;
+      right: -250px;
+      width: 250px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: -3px 0 5px rgba(0,0,0,0.2);
+      transition: right 0.3s ease;
+      z-index: 12;
+      padding: 10px;
+    }
+    #menu.open {
+      right: 0;
+    }
+    /* Pulsante apertura menù */
+    #menuBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      cursor: pointer;
+      z-index: 13;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      font-size: 20px;
+    }
+  </style>
 </head>
 <body>
+  <div id="map"></div>
+  <div id="crosshair"></div>
+  <div id="coords">Lat: –, Lng: –</div>
+  <div id="locateBtn" title="La mia posizione">📍</div>
+  <button id="menuBtn">☰</button>
+  <div id="menu"></div>
 
-<div id="map"></div>
+  <script>
+    let map, marker;
 
-<!-- header -->
-<div class="header">
-  <div class="title">
-    <div style="font-size:20px">🎯</div>
-    <div>
-      <h1>AmeTak — Tactical Map PRO</h1>
-      <small class="small">ALPHA-1</small>
-    </div>
-  </div>
-  <div class="actions">
-    <button class="btn" id="btnLayers">🗺️ Mappe</button>
-    <button class="btn" id="btnMenu">☰ Menu</button>
-  </div>
-</div>
-
-<!-- info panel -->
-<div class="info-panel" id="infoPanel">
-  <div class="row">
-    <div class="col">
-      <div class="label">Formato coordinate</div>
-      <select id="coordFormat">
-        <option value="dd">DD (Lat,Lng)</option>
-        <option value="dms">DMS</option>
-        <option value="dm">DM</option>
-        <option value="utm">UTM</option>
-        <option value="mgrs">MGRS (approx)</option>
-      </select>
-    </div>
-    <div class="col">
-      <div class="label">Nord riferimento</div>
-      <select id="northRef">
-        <option value="true">Geografico (True)</option>
-        <option value="magnetic">Magnetico</option>
-        <option value="grid">Grid</option>
-      </select>
-    </div>
-  </div>
-
-  <div style="margin-top:8px" class="coords-box" id="coordsBox">Attendi GPS...</div>
-
-  <div style="margin-top:8px" class="row">
-    <div class="col">
-      <div class="label">Azimut</div>
-      <div id="azValue" class="small">--</div>
-    </div>
-    <div class="col">
-      <div class="label">Acc/Alt/Vel</div>
-      <div id="statValue" class="small">--</div>
-    </div>
-  </div>
-</div>
-
-<!-- center crosshair -->
-<div class="crosshair" aria-hidden="true">
-  <div class="dot" style="width:12px;height:12px;border-radius:50%;"></div>
-</div>
-
-<!-- coord pointer bottom-left -->
-<div class="coord-pointer" id="pointerBox">-- , --</div>
-
-<!-- controls bottom-right -->
-<div class="controls">
-  <div class="circle-btn" id="btnCenter" title="Centra su GPS">🧭</div>
-  <div class="circle-btn" id="btnAdd" title="Aggiungi marker al centro">＋</div>
-  <div class="circle-btn" id="btnMeasure" title="Strumento misura">📏</div>
-  <div class="circle-btn" id="btnArea" title="Disegna area">⭕</div>
-</div>
-
-<!-- right menu -->
-<div class="menu" id="menu">
-  <h3>Tools & Utility</h3>
-
-  <div class="menu-section">
-    <div class="small" style="margin-bottom:6px">Mappe</div>
-    <div class="tools-row">
-      <button class="btn" onclick="changeMap('osm')">Street</button>
-      <button class="btn" onclick="changeMap('sat')">Satellite</button>
-      <button class="btn" onclick="changeMap('topo')">Topografica</button>
-    </div>
-  </div>
-
-  <div class="menu-section">
-    <div class="small">Markers</div>
-    <div style="margin:8px 0" class="tools-row">
-      <label class="small">Dimensione icone</label>
-      <input id="iconSize" type="range" min="16" max="48" value="28" />
-    </div>
-    <div class="list" id="markerList"></div>
-  </div>
-
-  <div class="menu-section">
-    <div class="small">Misure</div>
-    <div style="display:flex;gap:8px">
-      <button class="btn" id="btnMeasureMenu">Avvia misura</button>
-      <button class="btn" id="btnClearMeasure">Reset</button>
-    </div>
-    <div style="margin-top:8px" class="small">Strumento per distanza e bearing tra punti (click sulla mappa)</div>
-  </div>
-
-  <div class="menu-section">
-    <div class="small">Export / Import</div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn" onclick="exportKML()">KML</button>
-      <button class="btn" onclick="exportGPX()">GPX</button>
-      <button class="btn" onclick="exportJSON()">JSON</button>
-    </div>
-    <div style="margin-top:8px">
-      <label class="small btn" style="display:block;cursor:pointer">Import JSON<input type="file" id="fileImport" style="display:none" accept=".json" /></label>
-    </div>
-  </div>
-
-  <div class="menu-section">
-    <div class="small">Azimut reference</div>
-    <div style="display:flex;gap:6px;margin-top:6px">
-      <button class="btn" onclick="setAzimuthUnit('deg')">Gradi</button>
-      <button class="btn" onclick="setAzimuthUnit('mils')">Mils</button>
-    </div>
-  </div>
-
-  <div style="margin-top:12px">
-    <button class="btn" style="width:100%;background:#dc2626" onclick="clearAll()">Cancella Tutto</button>
-  </div>
-</div>
-
-<!-- modal add marker -->
-<div class="modal-back" id="modalBack">
-  <div class="modal" role="dialog" id="modalAdd">
-    <h4>Aggiungi Marker</h4>
-    <input id="mTitle" placeholder="Titolo" />
-    <textarea id="mDesc" placeholder="Descrizione" rows="3"></textarea>
-    <select id="mType">
-      <option value="waypoint">Waypoint</option>
-      <option value="objective">Obiettivo</option>
-      <option value="observation">Osservazione</option>
-      <option value="hazard">Pericolo</option>
-      <option value="friendly">Forze Amiche</option>
-      <option value="hostile">Forze Ostili</option>
-    </select>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-      <button class="btn" onclick="closeModal()">Annulla</button>
-      <button class="btn" style="background:var(--accent);color:#012" onclick="saveMarker()">Salva</button>
-    </div>
-  </div>
-</div>
-
-<script>
-/* ---------------------------
-   Helper: Coordinate formats
-   --------------------------- */
-function formatDD(lat,lng){ return lat.toFixed(6)+', '+lng.toFixed(6); }
-function formatDMS(lat,lng){
-  function conv(d,isLat){
-    const dir = d>=0 ? (isLat?'N':'E') : (isLat?'S':'W');
-    d = Math.abs(d);
-    const deg = Math.floor(d);
-    const min = Math.floor((d-deg)*60);
-    const sec = ((d-deg-min/60)*3600).toFixed(2);
-    return `${deg}°${String(min).padStart(2,'0')}'${String(sec).padStart(5,'0')}" ${dir}`;
-  }
-  return conv(lat,true)+' '+conv(lng,false);
-}
-function formatDM(lat,lng){
-  function conv(d,isLat){
-    const dir = d>=0 ? (isLat?'N':'E') : (isLat?'S':'W');
-    d = Math.abs(d);
-    const deg = Math.floor(d);
-    const min = ((d-deg)*60).toFixed(4);
-    return `${deg}° ${String(min).padStart(7,'0')}' ${dir}`;
-  }
-  return conv(lat,true)+' '+conv(lng,false);
-}
-/* UTM approximate (sufficient for display; not full projection library) */
-function formatUTM(lat,lng){
-  const zone = Math.floor((lng+180)/6)+1;
-  const letter = 'CDEFGHJKLMNPQRSTUVWXX'[Math.floor((lat+80)/8)];
-  return `${zone}${letter} 500000mE 5000000mN` // placeholder easting/northing generic
-}
-/* MGRS simplified placeholder */
-function formatMGRS(lat,lng){
-  const zone = Math.floor((lng+180)/6)+1;
-  const letter = 'CDEFGHJKLMNPQRSTUVWXX'[Math.floor((lat+80)/8)];
-  return `${zone}${letter} XX 00000 00000` // placeholder — accurate MGRS conversion needs a library
-}
-
-/* Bearing & distance */
-function toRad(d){return d*Math.PI/180;}
-function toDeg(r){return r*180/Math.PI;}
-function haversineDistance(lat1,lng1,lat2,lng2){
-  const R=6371000;
-  const φ1=toRad(lat1), φ2=toRad(lat2), dφ=toRad(lat2-lat1), dλ=toRad(lng2-lng1);
-  const a=Math.sin(dφ/2)*Math.sin(dφ/2)+Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)*Math.sin(dλ/2);
-  const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return R*c;
-}
-function bearing(lat1,lng1,lat2,lng2){
-  const φ1=toRad(lat1), φ2=toRad(lat2), Δλ=toRad(lng2-lng1);
-  const y=Math.sin(Δλ)*Math.cos(φ2);
-  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-  return (toDeg(Math.atan2(y,x))+360)%360;
-}
-
-/* ---------------------------
-   Map initialization
-   --------------------------- */
-let map, baseLayers = {}, currentLayer='osm';
-let userMarker=null, userCircle=null, userPos=null, gpsWatchId=null;
-let markers = []; // {id,lat,lng,title,desc,type,leaflet}
-let measureMode=false, measurePoints=[], measureLine=null;
-let areaMode=false, areaPoints=[], areaPolygon=null;
-let iconSize=28;
-let azUnit='deg'; // 'deg' or 'mils'
-let northRef='true'; // 'true','magnetic','grid'
-let magDecl=0, gridConv=0;
-
-function initMap(){
-  map = L.map('map', { zoomControl:true }).setView([45.0,9.0], 6);
-
-  baseLayers.osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19, attribution:'© OpenStreetMap'
-  });
-  baseLayers.sat = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OSM HOT'});
-  baseLayers.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenTopoMap'});
-  baseLayers.dark = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',{maxZoom:20, attribution:'© Stadia Maps'});
-
-  baseLayers.osm.addTo(map);
-  currentLayer='osm';
-
-  map.on('moveend', onMapInteractionDebounced);
-  map.on('zoomend', onMapInteractionDebounced);
-  map.on('click', onMapClick);
-
-  loadData();
-  initEventHandlers();
-  initGPS();
-  updateIconSizeSlider();
-  refreshMarkerList();
-}
-
-/* ---------------------------
-   UI & Menu behaviors
-   --------------------------- */
-const menu = document.getElementById('menu');
-document.getElementById('btnMenu').addEventListener('click', ()=>{ toggleMenu(); });
-function toggleMenu(open){
-  if(open===undefined) menu.classList.toggle('open');
-  else menu.classList.toggle('open', !!open);
-}
-let mapInteractionTimer=null;
-function onMapInteractionDebounced(){
-  // close menu on interaction
-  toggleMenu(false);
-}
-/* Close menu while dragging/zooming continuously (debounced) */
-mapInteractionDebounced = (function(){
-  let t;
-  return function(){
-    toggleMenu(false);
-    if(t) clearTimeout(t);
-    t = setTimeout(()=>{},300);
-  };
-})();
-
-/* Layers button */
-document.getElementById('btnLayers').addEventListener('click',()=>{
-  const sel = document.getElementById('coordFormat');
-  // show/hide layer selector small: reuse menu layer buttons; simply open menu and scroll to top
-  toggleMenu(true);
-  menu.scrollTop = 0;
-});
-
-/* center GPS */
-document.getElementById('btnCenter').addEventListener('click', centerOnGPS);
-function centerOnGPS(){
-  if(userPos) map.setView([userPos.lat,userPos.lng], Math.max(15, map.getZoom()));
-}
-
-/* add marker modal */
-document.getElementById('btnAdd').addEventListener('click', ()=>openAddModal());
-function openAddModal(){
-  // show modal
-  document.getElementById('modalBack').style.display='flex';
-}
-function closeModal(){ document.getElementById('modalBack').style.display='none'; }
-function saveMarker(){
-  const title = document.getElementById('mTitle').value || 'Marker';
-  const desc = document.getElementById('mDesc').value || '';
-  const type = document.getElementById('mType').value || 'waypoint';
-  addMarkerAtCenter({title,desc,type});
-  document.getElementById('mTitle').value=''; document.getElementById('mDesc').value='';
-  closeModal();
-}
-
-/* measure controls */
-document.getElementById('btnMeasure').addEventListener('click', toggleMeasure);
-document.getElementById('btnMeasureMenu').addEventListener('click', toggleMeasure);
-function toggleMeasure(){
-  measureMode = !measureMode;
-  if(measureMode){
-    map.getContainer().style.cursor='crosshair';
-    measurePoints=[]; if(measureLine) { map.removeLayer(measureLine); measureLine=null; }
-    document.getElementById('btnMeasure').classList.add('active');
-    document.getElementById('btnMeasureMenu').innerText='Stop misura';
-  } else {
-    map.getContainer().style.cursor='';
-    measurePoints=[]; if(measureLine) { map.removeLayer(measureLine); measureLine=null; }
-    document.getElementById('btnMeasure').classList.remove('active');
-    document.getElementById('btnMeasureMenu').innerText='Avvia misura';
-    updatePointerBox();
-  }
-}
-document.getElementById('btnClearMeasure').addEventListener('click', ()=>{
-  measurePoints=[]; if(measureLine){ map.removeLayer(measureLine); measureLine=null; } updatePointerBox();
-});
-
-/* area controls */
-document.getElementById('btnArea').addEventListener('click', toggleArea);
-function toggleArea(){
-  areaMode = !areaMode;
-  if(areaMode){
-    map.getContainer().style.cursor='crosshair';
-    areaPoints=[]; if(areaPolygon){ map.removeLayer(areaPolygon); areaPolygon=null; }
-    document.getElementById('btnArea').classList.add('active');
-  } else {
-    map.getContainer().style.cursor='';
-    areaPoints=[]; if(areaPolygon){ map.removeLayer(areaPolygon); areaPolygon=null; }
-    document.getElementById('btnArea').classList.remove('active');
-  }
-}
-
-/* icon size slider */
-document.getElementById('iconSize').addEventListener('input', (e)=>{
-  iconSize = parseInt(e.target.value||28);
-  updateIconSizeSlider();
-  refreshMarkerIcons();
-});
-
-/* import file */
-document.getElementById('fileImport').addEventListener('change',(e)=>importJSON(e));
-
-/* modal background click closes modal */
-document.getElementById('modalBack').addEventListener('click',(e)=>{
-  if(e.target === document.getElementById('modalBack')) closeModal();
-});
-
-/* azimuth unit buttons */
-function setAzimuthUnit(u){ azUnit = u; updateAzVal(); }
-
-/* northRef change */
-document.getElementById('northRef').addEventListener('change', (e)=>{ northRef=e.target.value; updateAzVal(); });
-
-/* ---------------------------
-   Map click handlers (measure/area/add)
-   --------------------------- */
-function onMapClick(e){
-  if(measureMode){
-    measurePoints.push(e.latlng);
-    L.circleMarker(e.latlng,{radius:4,color:'#06b6d4',fillColor:'#06b6d4',fillOpacity:1}).addTo(map);
-    if(measurePoints.length>=2){
-      if(measureLine) map.removeLayer(measureLine);
-      measureLine = L.polyline(measurePoints,{color:'#06b6d4',dashArray:'6,6'}).addTo(map);
-      const total = measurePoints.reduce((acc,p,i,arr)=> i===0?0:acc+map.distance(arr[i-1],arr[i]),0);
-      addMessage(`Distanza: ${total<1000?Math.round(total)+' m':(total/1000).toFixed(2)+' km'}`);
-      updatePointerBox(); updateAzVal();
-    }
-    return;
-  }
-  if(areaMode){
-    areaPoints.push([e.latlng.lat,e.latlng.lng]);
-    L.circleMarker(e.latlng,{radius:4,color:'#f59e0b',fillColor:'#f59e0b'}).addTo(map);
-    if(areaPoints.length>=3){
-      if(areaPolygon) map.removeLayer(areaPolygon);
-      areaPolygon = L.polygon(areaPoints,{color:'#f59e0b',fillColor:'#f59e0b',fillOpacity:0.12}).addTo(map);
-      // save area
-      saveArea(areaPoints);
-      addMessage(`Area creata: ${areaPoints.length} vertici`);
-      areaPoints=[]; toggleArea();
-    }
-    return;
-  }
-}
-
-/* ---------------------------
-   Marker functions
-   --------------------------- */
-function addMarkerAtCenter(meta){
-  const center = map.getCenter();
-  const id = Date.now().toString(36);
-  const icon = L.divIcon({
-    html:`<div style="font-size:${iconSize}px">${getMarkerEmoji(meta.type)}</div>`,
-    className:'',
-    iconSize:[iconSize,iconSize],
-    iconAnchor:[iconSize/2,iconSize]
-  });
-  const leaflet = L.marker([center.lat,center.lng],{icon}).addTo(map);
-  leaflet.bindPopup(`<b>${meta.title}</b><br>${meta.desc||''}<br><small>${formatDD(center.lat,center.lng)}</small>`);
-  const obj = { id, lat:center.lat, lng:center.lng, title:meta.title, description:meta.desc, type:meta.type, leaflet };
-  markers.push(obj);
-  saveData(); refreshMarkerList(); addMessage(`Marker aggiunto: ${meta.title}`);
-}
-function getMarkerEmoji(type){
-  const dict = { waypoint:'📍', objective:'🎯', observation:'👁️', hazard:'⚠️', friendly:'🔵', hostile:'🔴' };
-  return dict[type]||'📍';
-}
-function refreshMarkerIcons(){
-  markers.forEach(m=>{
-    const icon = L.divIcon({
-      html:`<div style="font-size:${iconSize}px">${getMarkerEmoji(m.type)}</div>`,
-      className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2,iconSize]
-    });
-    m.leaflet.setIcon(icon);
-  });
-}
-function refreshMarkerList(){
-  const el = document.getElementById('markerList'); el.innerHTML='';
-  markers.forEach(m=>{
-    const li = document.createElement('div'); li.className='list-item';
-    li.innerHTML = `<div><strong>${m.title}</strong><div class="small">${formatDD(m.lat,m.lng)}</div></div>
-                    <div style="display:flex;flex-direction:column;gap:6px">
-                      <button class="btn" onclick="zoomTo('${m.id}')">Centra</button>
-                      <button class="btn" style="background:#dc2626" onclick="removeMarker('${m.id}')">X</button>
-                    </div>`;
-    el.appendChild(li);
-  });
-  document.getElementById('markerCount')?.innerText = markers.length;
-}
-
-/* remove marker */
-function removeMarker(id){
-  const idx = markers.findIndex(m=>m.id===id); if(idx===-1) return;
-  map.removeLayer(markers[idx].leaflet);
-  markers.splice(idx,1);
-  saveData(); refreshMarkerList();
-}
-function zoomTo(id){
-  const m = markers.find(x=>x.id===id); if(!m) return;
-  map.setView([m.lat,m.lng],17);
-  m.leaflet.openPopup();
-}
-
-/* ---------------------------
-   Export / Import
-   --------------------------- */
-function exportKML(){
-  let kml = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>';
-  markers.forEach(m=>{
-    kml+=`<Placemark><name>${m.title}</name><description>${m.description||''}</description><Point><coordinates>${m.lng},${m.lat},0</coordinates></Point></Placemark>`;
-  });
-  kml+='</Document></kml>';
-  downloadBlob(kml,'application/vnd.google-earth.kml+xml',`ametak_${Date.now()}.kml`);
-}
-function exportGPX(){
-  let gpx = `<?xml version="1.0"?>\n<gpx version="1.1" creator="AmeTak">\n`;
-  markers.forEach(m=>{
-    gpx+=`<wpt lat="${m.lat}" lon="${m.lng}"><name>${m.title}</name><desc>${m.description||''}</desc></wpt>\n`;
-  });
-  gpx+='</gpx>';
-  downloadBlob(gpx,'application/gpx+xml',`ametak_${Date.now()}.gpx`);
-}
-function exportJSON(){
-  const data = { markers: markers.map(m=>({id:m.id,lat:m.lat,lng:m.lng,title:m.title,description:m.description,type:m.type})), created:new Date().toISOString() };
-  downloadBlob(JSON.stringify(data,null,2),'application/json',`ametak_${Date.now()}.json`);
-}
-function downloadBlob(content,type,filename){
-  const blob = new Blob([content],{type});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
-}
-function importJSON(e){
-  const f = e.target.files[0]; if(!f) return;
-  const r = new FileReader();
-  r.onload = ()=> {
-    try{
-      const data = JSON.parse(r.result);
-      if(data.markers){
-        data.markers.forEach(m=> {
-          const icon = L.divIcon({ html:`<div style="font-size:${iconSize}px">📍</div>`, className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2,iconSize]});
-          const leaflet = L.marker([m.lat,m.lng],{icon}).addTo(map);
-          leaflet.bindPopup(`<b>${m.title}</b><br>${m.description||''}`);
-          markers.push({ id:m.id||Date.now().toString(36), lat:m.lat, lng:m.lng, title:m.title, description:m.description||'', type:m.type||'waypoint', leaflet });
-        });
-        saveData(); refreshMarkerList(); addMessage('Import completato');
-      }
-    }catch(err){ alert('Errore import: '+err.message) }
-  };
-  r.readAsText(f);
-}
-
-/* ---------------------------
-   Storage (localStorage)
-   --------------------------- */
-function saveData(){
-  try{
-    const data = { markers: markers.map(m=>({id:m.id,lat:m.lat,lng:m.lng,title:m.title,description:m.description,type:m.type})), created: Date.now() };
-    localStorage.setItem('ametak_data', JSON.stringify(data));
-  }catch(e){ console.error(e); }
-}
-function loadData(){
-  try{
-    const raw = localStorage.getItem('ametak_data');
-    if(!raw) return;
-    const data = JSON.parse(raw);
-    if(data.markers){
-      data.markers.forEach(m=>{
-        const icon = L.divIcon({ html:`<div style="font-size:${iconSize}px">📍</div>`, className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2,iconSize]});
-        const leaflet = L.marker([m.lat,m.lng],{icon}).addTo(map);
-        leaflet.bindPopup(`<b>${m.title}</b><br>${m.description||''}`);
-        markers.push({ ...m, leaflet });
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 41.8719, lng: 12.5674 }, // centro Italia
+        zoom: 6,
+        mapTypeId: "satellite",
+        disableDefaultUI: true,
       });
-      refreshMarkerList();
-    }
-  }catch(e){ console.error(e); }
-}
 
-/* ---------------------------
-   GPS initialization
-   --------------------------- */
-function initGPS(){
-  if(!navigator.geolocation){
-    document.getElementById('coordsBox').innerText='GPS non supportato';
-    return;
-  }
-  document.getElementById('coordsBox').innerText='Richiedo permesso GPS...';
-  navigator.geolocation.getCurrentPosition(pos=>{
-    updateUserPos(pos);
-    // start watch
-    gpsWatchId = navigator.geolocation.watchPosition(updateUserPos, handleGPSError, { enableHighAccuracy:true, timeout:15000, maximumAge:3000 });
-  }, handleGPSError, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
-}
-function handleGPSError(err){
-  console.warn('GPS error',err);
-  document.getElementById('coordsBox').innerText = 'GPS indisponibile: ' + (err.message||'errore');
-}
-function updateUserPos(pos){
-  userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, altitude: pos.coords.altitude, speed: pos.coords.speed };
-  // update marker/circle
-  if(!userMarker){
-    const icon = L.divIcon({ html:'<div style="width:14px;height:14px;border-radius:50%;background:#10b981;border:2px solid #fff;"></div>', className:'', iconSize:[20,20], iconAnchor:[10,10] });
-    userMarker = L.marker([userPos.lat,userPos.lng],{icon}).addTo(map);
-    userCircle = L.circle([userPos.lat,userPos.lng],{radius:userPos.accuracy, color:'#10b981', fillOpacity:0.08}).addTo(map);
-    map.setView([userPos.lat,userPos.lng], 15);
-  } else {
-    userMarker.setLatLng([userPos.lat,userPos.lng]);
-    userCircle.setLatLng([userPos.lat,userPos.lng]); userCircle.setRadius(userPos.accuracy);
-  }
-  magDecl = -0.00012*userPos.lng + 0.0002*userPos.lat; // simple approx
-  const zone = Math.floor((userPos.lng+180)/6)+1; const cm = (zone-1)*6-180+3;
-  gridConv = (userPos.lng-cm)*Math.sin(userPos.lat*Math.PI/180);
-  updateCoordsDisplay();
-  updateAzVal();
-  document.getElementById('statValue').innerText = `±${Math.round(userPos.accuracy)}m / ${userPos.altitude?Math.round(userPos.altitude)+'m':'N/A'} / ${userPos.speed? (userPos.speed*3.6).toFixed(1)+' km/h':'0'}`;
-}
+      const coordsEl = document.getElementById("coords");
 
-/* ---------------------------
-   Pointer & Info update
-   --------------------------- */
-function updateCoordsDisplay(){
-  const center = map.getCenter();
-  const fmt = document.getElementById('coordFormat').value;
-  let s = '';
-  if(fmt==='dd') s = formatDD(center.lat,center.lng);
-  else if(fmt==='dms') s = formatDMS(center.lat,center.lng);
-  else if(fmt==='dm') s = formatDM(center.lat,center.lng);
-  else if(fmt==='utm') s = formatUTM(center.lat,center.lng);
-  else if(fmt==='mgrs') s = formatMGRS(center.lat,center.lng);
-  document.getElementById('coordsBox').innerText = s;
-  document.getElementById('pointerBox').innerText = s;
-}
-document.getElementById('coordFormat').addEventListener('change', updateCoordsDisplay);
+      map.addListener("center_changed", () => {
+        const center = map.getCenter();
+        coordsEl.textContent = `Lat: ${center.lat().toFixed(6)}, Lng: ${center.lng().toFixed(6)}`;
+      });
 
-/* Azimuth display */
-function updateAzVal(){
-  // If measure tool has 2 points, show bearing between them; else show device heading (if available)
-  let azTxt='--';
-  if(measurePoints.length>=2){
-    const a = bearing(measurePoints[0].lat,measurePoints[0].lng,measurePoints[measurePoints.length-1].lat,measurePoints[measurePoints.length-1].lng);
-    let az = a;
-    if(northRef==='magnetic') az += magDecl;
-    if(northRef==='grid') az += gridConv;
-    if(azUnit==='mils') azTxt = Math.round((az/360)*6400)+' mils';
-    else azTxt = Math.round(az)+'°';
-  } else {
-    // use user heading if available from device (deviceorientation event)
-    azTxt = '--';
-  }
-  document.getElementById('azValue').innerText = azTxt;
-}
+      document.getElementById("locateBtn").addEventListener("click", () => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            const userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            map.setCenter(userPos);
+            map.setZoom(16);
+            coordsEl.textContent = `Lat: ${userPos.lat.toFixed(6)}, Lng: ${userPos.lng.toFixed(6)}`;
+          }, () => {
+            alert("Impossibile ottenere la posizione GPS.");
+          });
+        } else {
+          alert("Geolocalizzazione non supportata dal browser.");
+        }
+      });
 
-/* update pointer (center) box */
-function updatePointerBox(){
-  updateCoordsDisplay();
-  updateAzVal();
-}
+      // Menù toggle
+      const menu = document.getElementById("menu");
+      const btn = document.getElementById("menuBtn");
+      btn.addEventListener("click", () => {
+        menu.classList.toggle("open");
+      });
 
-/* update icon size control initial */
-function updateIconSizeSlider(){
-  document.getElementById('iconSize').value = iconSize;
-}
-
-/* ---------------------------
-   Messages / small feed
-   --------------------------- */
-function addMessage(txt){
-  const t = new Date().toLocaleTimeString();
-  console.log(`[MSG ${t}] ${txt}`);
-  // Optional: small ephemeral toast; for now console + menu chat
-}
-
-/* ---------------------------
-   Area saving
-   --------------------------- */
-function saveArea(points){
-  const id = Date.now().toString(36);
-  const poly = L.polygon(points,{color:'#f59e0b',fillOpacity:0.12}).addTo(map);
-  areas.push({ id, points, leaflet: poly, name: 'Area ' + (areas.length+1) });
-  saveData();
-  refreshAreaList();
-}
-function refreshAreaList(){
-  const el = document.getElementById('areaList'); if(!el) return;
-  el.innerHTML = '';
-  areas.forEach(a=>{
-    const div = document.createElement('div'); div.className='list-item';
-    div.innerHTML = `<div><strong>${a.name}</strong><div class="small">${a.points.length} vertici</div></div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        <button class="btn" onclick="zoomArea('${a.id}')">Centra</button>
-        <button class="btn" style="background:#dc2626" onclick="removeArea('${a.id}')">X</button>
-      </div>`;
-    el.appendChild(div);
-  });
-  document.getElementById('areaCount')?.innerText = areas.length;
-}
-function zoomArea(id){
-  const a = areas.find(x=>x.id===id); if(!a) return;
-  map.fitBounds(a.leaflet.getBounds(),{padding:[40,40]});
-}
-function removeArea(id){
-  const idx = areas.findIndex(a=>a.id===id); if(idx===-1) return;
-  map.removeLayer(areas[idx].leaflet);
-  areas.splice(idx,1); saveData(); refreshAreaList();
-}
-
-/* ---------------------------
-   Save / load on start
-   --------------------------- */
-function loadData(){
-  try{
-    const raw = localStorage.getItem('ametak_data');
-    if(!raw) return;
-    const data = JSON.parse(raw);
-    if(data.markers){
-      data.markers.forEach(m=>{
-        const icon = L.divIcon({ html:`<div style="font-size:${iconSize}px">📍</div>`, className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2,iconSize]});
-        const leaflet = L.marker([m.lat,m.lng],{icon}).addTo(map);
-        leaflet.bindPopup(`<b>${m.title}</b><br>${m.description||''}`);
-        markers.push({...m, leaflet});
+      // Chiudi menù quando muovo la mappa
+      map.addListener("dragstart", () => {
+        menu.classList.remove("open");
       });
     }
-    if(data.areas){
-      data.areas.forEach(a=>{
-        const poly = L.polygon(a.points,{color:'#f59e0b',fillOpacity:0.12}).addTo(map);
-        areas.push({ ...a, leaflet: poly });
-      });
-    }
-    refreshMarkerList(); refreshAreaList();
-  }catch(e){ console.warn('loadData error',e); }
-}
+  </script>
 
-/* ---------------------------
-   Utilities & finalization
-   --------------------------- */
-function clearAll(){
-  if(!confirm('Eliminare tutti i marker e le aree salvate?')) return;
-  markers.forEach(m=> map.removeLayer(m.leaflet));
-  markers=[]; refreshMarkerList();
-  areas.forEach(a=> map.removeLayer(a.leaflet));
-  areas=[]; refreshAreaList();
-  localStorage.removeItem('ametak_data');
-  addMessage('Dati cancellati');
-}
-
-function removeAllUI(){ document.getElementById('coordsBox').innerText=''; }
-
-/* Zoom / map layer change */
-function changeMap(name){
-  if(baseLayers[currentLayer]) map.removeLayer(baseLayers[currentLayer]);
-  currentLayer = (name==='osm'?'osm':(name==='sat'?'sat':(name==='topo'?'topo':'dark')));
-  if(baseLayers[currentLayer]) baseLayers[currentLayer].addTo(map);
-  toggleMenu(false);
-}
-
-/* refresh marker icons when iconSize changed */
-function refreshMarkerIcons(){ markers.forEach(m=>{
-  const icon = L.divIcon({ html:`<div style="font-size:${iconSize}px">${getMarkerEmoji(m.type)}</div>`, className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2,iconSize]});
-  m.leaflet.setIcon(icon);
-}); }
-
-/* removeEventHandlers on unload */
-window.addEventListener('beforeunload', ()=>{ if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId); });
-
-/* on load init */
-initMap();
-
-/* helpers to export/import, added earlier already available */
-function addMessageShort(m){ /* placeholder */ }
-
-/* ensure pointer updates while map moves */
-map.on('move', ()=>{ updatePointerBox(); });
-
-/* initial pointer update */
-setTimeout(()=>updatePointerBox(),800);
-
-/* TEMP: loadData already called in initMap via loadData() */
-</script>
-
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&callback=initMap"></script>
 </body>
 </html>

@@ -2,140 +2,149 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#111827">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tactical System PRO</title>
-
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-
 <style>
-  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; font-family: system-ui, -apple-system; }
-  #root { width:100%; height:100%; }
-  .crosshair {
-    position: absolute;
-    left:50%;
-    top:50%;
-    transform: translate(-50%, -50%);
-    width:24px;
-    height:24px;
-    border:2px solid red;
-    border-radius:50%;
-    pointer-events:none;
-    z-index:50;
-  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:system-ui, -apple-system; overflow:hidden; background:#111827; color:white; }
+  #root { width:100vw; height:100vh; position:relative; }
+  .menu { position:absolute; top:10px; left:10px; background:#1f2937; border:1px solid #374151; padding:10px; border-radius:8px; z-index:100; max-height:90vh; overflow-y:auto; }
+  .menu button { width:100%; margin:2px 0; padding:6px; text-align:left; background:#374151; border:none; border-radius:4px; cursor:pointer; color:white; }
+  .menu button:hover { background:#4b5563; }
+  .marker { position:absolute; transform:translate(-50%, -50%); cursor:pointer; }
+  .crosshair { position:absolute; top:50%; left:50%; width:20px; height:20px; transform:translate(-50%,-50%); border:2px solid cyan; border-radius:50%; z-index:90; pointer-events:none; }
+  .popup { position:absolute; background:#1f2937; padding:5px; border:1px solid #4b5563; border-radius:4px; z-index:110; }
+  .info-box { position:absolute; bottom:10px; left:10px; background:#1f2937; border:1px solid #374151; padding:8px; border-radius:8px; z-index:100; font-size:12px; }
 </style>
 </head>
-
 <body>
 <div id="root"></div>
-<div class="crosshair"></div>
 
 <script type="text/babel">
-
 const { useState, useEffect, useRef } = React;
 
-const TacticalApp = () => {
-  const [map, setMap] = useState(null);
-  const [userLocation, setUserLocation] = useState(null);
-  const [markers, setMarkers] = useState([]);
-  const [coordFormat, setCoordFormat] = useState('dd');
-  const [points, setPoints] = useState([]);
-
-  const mapRef = useRef(null);
-
-  useEffect(() => {
-    const m = L.map('root', { zoomControl: false }).setView([45, 12], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(m);
-    setMap(m);
-    mapRef.current = m;
-
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(pos => {
-        const latlng = [pos.coords.latitude, pos.coords.longitude];
-        setUserLocation(latlng);
-      }, err => alert('GPS Error: ' + err.message), { enableHighAccuracy: true });
-    }
-  }, []);
-
-  const formatCoordinates = (lat, lng) => {
-    switch(coordFormat) {
-      case 'dd': return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      case 'dms': return toDMS(lat,true)+', '+toDMS(lng,false);
-      case 'utm': return toUTM(lat,lng);
-      case 'mgrs': return toMGRS(lat,lng);
-      default: return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    }
-  };
-
-  const toDMS = (deg, isLat) => {
-    const abs = Math.abs(deg);
-    const d = Math.floor(abs);
-    const m = Math.floor((abs - d) * 60);
-    const s = ((abs - d - m/60)*3600).toFixed(2);
-    const dir = deg>=0 ? (isLat?'N':'E') : (isLat?'S':'W');
-    return `${d}°${m}'${s}" ${dir}`;
-  };
-
-  const toUTM = (lat,lng) => { return `UTM ${lat.toFixed(4)}, ${lng.toFixed(4)}`; } // semplificato
-  const toMGRS = (lat,lng) => { return `MGRS ${lat.toFixed(4)}, ${lng.toFixed(4)}`; } // semplificato
-
-  const handleMapClick = (e) => {
-    const { lat, lng } = e.latlng;
-    const marker = L.marker([lat,lng], { draggable:true }).addTo(map);
-    marker.bindPopup(`Coordinate: ${formatCoordinates(lat,lng)}`).openPopup();
-    setMarkers([...markers, marker]);
-    setPoints([...points, marker]);
-  };
-
-  useEffect(() => {
-    if (!map) return;
-    map.on('click', handleMapClick);
-    return () => map.off('click', handleMapClick);
-  }, [map, markers, coordFormat]);
-
-  return (
-    <div className="h-full w-full relative">
-      {/* Menu strumenti */}
-      <div className="absolute top-4 left-4 bg-gray-800 text-white p-2 rounded z-50 flex flex-col gap-2">
-        <label className="text-sm">Formato coordinate:</label>
-        <select value={coordFormat} onChange={e=>setCoordFormat(e.target.value)} className="bg-gray-700 p-1 rounded">
-          <option value="dd">Decimali</option>
-          <option value="dms">DMS</option>
-          <option value="utm">UTM</option>
-          <option value="mgrs">MGRS</option>
-        </select>
-        <button className="bg-blue-600 p-1 rounded" onClick={()=>points.forEach(m=>m.remove())}>Cancella Marker</button>
-      </div>
-
-      {/* Info box */}
-      <div className="absolute bottom-4 left-4 bg-gray-800 text-white p-2 rounded shadow-lg z-50">
-        Coordinate: {userLocation ? formatCoordinates(...userLocation) : '...' }
-        <br/>
-        {points.length>0 && userLocation && (
-          <>
-          Distanza dall’ultimo punto: {turf.distance([points[points.length-1].getLatLng().lng, points[points.length-1].getLatLng().lat], [userLocation[1],userLocation[0]], {units:'kilometers'}).toFixed(3)} km
-          <br/>
-          Direzione: {turf.bearing([points[points.length-1].getLatLng().lng, points[points.length-1].getLatLng().lat], [userLocation[1],userLocation[0]]).toFixed(1)}°
-          </>
-        )}
-      </div>
-    </div>
-  );
+// Storage helper
+const storage = {
+  get: key => { try { const val = localStorage.getItem(key); return val ? JSON.parse(val):null; } catch { return null; }},
+  set: (key,value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }}
 };
 
-ReactDOM.render(<TacticalApp />, document.getElementById('root'));
+const markerTypes = {
+  waypoint: {icon:'📍', color:'#3b82f6'},
+  objective: {icon:'🎯', color:'#ef4444'},
+  observation: {icon:'👁️', color:'#10b981'},
+  hazard: {icon:'⚠️', color:'#f59e0b'},
+  friendly: {icon:'🔵', color:'#06b6d4'},
+  hostile: {icon:'🔴', color:'#dc2626'},
+  medic: {icon:'🏥', color:'#ef4444'},
+  supply: {icon:'📦', color:'#8b5cf6'},
+  lz: {icon:'🚁', color:'#22c55e'}
+};
 
-</script>
-</body>
-</html>
+// Utility functions
+function formatDD(lat,lng){ return `${lat.toFixed(6)}, ${lng.toFixed(6)}`; }
+function formatDMS(lat,lng){
+  const dms=(v,isLat)=>{
+    const abs=Math.abs(v); const d=Math.floor(abs); const m=Math.floor((abs-d)*60); const s=(((abs-d)-m/60)*3600).toFixed(2);
+    const dir=v>=0?(isLat?'N':'E'):(isLat?'S':'W'); return `${d}°${m}'${s}" ${dir}`;
+  };
+  return `${dms(lat,true)} ${dms(lng,false)}`;
+}
+
+function calculateDistance(lat1,lng1,lat2,lng2){
+  const R=6371000; const φ1=lat1*Math.PI/180; const φ2=lat2*Math.PI/180;
+  const Δφ=(lat2-lat1)*Math.PI/180; const Δλ=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  return R*c;
+}
+
+function calculateBearing(lat1,lng1,lat2,lng2){
+  const φ1=lat1*Math.PI/180; const φ2=lat2*Math.PI/180;
+  const Δλ=(lng2-lng1)*Math.PI/180;
+  const y=Math.sin(Δλ)*Math.cos(φ2); const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+
+function TacticalApp(){
+  const [markers,setMarkers]=useState([]);
+  const [showMenu,setShowMenu]=useState(true);
+  const [crossCoords,setCrossCoords]=useState({lat:0,lng:0});
+  const [coordFormat,setCoordFormat]=useState('dd');
+  const [markerSize,setMarkerSize]=useState(32);
+  const rootRef = useRef(null);
+
+  useEffect(()=>{const data=storage.get('markers'); if(data) setMarkers(data);},[]);
+  useEffect(()=>{storage.set('markers',markers);},[markers]);
+
+  useEffect(()=>{
+    const handleMove=e=>{
+      const rect=rootRef.current.getBoundingClientRect();
+      const x=(e.clientX-rect.left)/rect.width;
+      const y=(e.clientY-rect.top)/rect.height;
+      setCrossCoords({lat:(1-y)*180-90,lng:x*360-180});
+    };
+    const el=rootRef.current;
+    el.addEventListener('mousemove',handleMove);
+    el.addEventListener('touchmove',e=>handleMove(e.touches[0]));
+    return ()=>{el.removeEventListener('mousemove',handleMove);}
+  },[]);
+
+  const addMarker = () => {
+    const m={id:Date.now(), lat:crossCoords.lat, lng:crossCoords.lng, type:'waypoint'};
+    setMarkers([...markers,m]);
+  };
+
+  const formatCoords = ({lat,lng})=>{
+    switch(coordFormat){
+      case 'dd': return formatDD(lat,lng);
+      case 'dms': return formatDMS(lat,lng);
+      default: return formatDD(lat,lng);
+    }
+  };
+
+  return (
+    <div id="root" ref={rootRef} className="w-full h-full relative">
+      {/* Menu */}
+      {showMenu && (
+        <div className="menu">
+          <button onClick={addMarker}>➕ Aggiungi Marker</button>
+          <button onClick={()=>setMarkerSize(markerSize+8)}>🔍 Ingrandisci Icone</button>
+          <button onClick={()=>setMarkerSize(Math.max(8,markerSize-8))}>🔎 Riduci Icone</button>
+          <button onClick={()=>setCoordFormat('dd')}>📍 Coordinate DD</button>
+          <button onClick={()=>setCoordFormat('dms')}>📍 Coordinate DMS</button>
+          <button onClick={()=>setMarkers([])}>🗑️ Cancella tutti i marker</button>
+          <div className="mt-2 border-t border-gray-600 pt-2">
+            <strong>Tools avanzati:</strong>
+            <button onClick={()=>alert('Funzione misura distanza in sviluppo')}>📏 Misura distanza</button>
+            <button onClick={()=>alert('Funzione azimut in sviluppo')}>🧭 Calcola direzione</button>
+            <button onClick={()=>alert('Funzione area in sviluppo')}>🔷 Disegna area</button>
+          </div>
+        </div>
+      )}
+
+      {/* Crosshair */}
+      <div className="crosshair"></div>
+
+      {/* Markers */}
+      {markers.map(m=>(
+        <div key={m.id} className="marker" style={{
+          top:`${50-(crossCoords.lat/180*50)}%`,
+          left:`${50+(crossCoords.lng/360*50)}%`,
+          fontSize:`${markerSize}px`,
+          color: markerTypes[m.type].color
+        }}>
+          {markerTypes[m.type].icon}
+        </div>
+      ))}
+
+      {/* Info box */}
+      <div className="info-box">
+        <div><strong>Crosshair:</strong> {formatCoords(crossCoords)}</div>
+        <div><strong>Markers:</strong> {markers.length}</div>
+        <button onClick={()=>setShowMenu(!showMenu)} style={{marginTop:'5px',padding:'2px 4px',background:'#374151',borderRadius:'4px'}}>Toggle Menu</button>
+      </div

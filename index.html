@@ -3,158 +3,172 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical System PRO</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
+<title>Tactical Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <style>
   html, body { height:100%; margin:0; }
-  #map { height:100%; width:100%; }
+  #map { width:100%; height:100%; }
+  #menuIcon {
+    position:absolute; top:10px; right:10px;
+    width:40px; height:40px;
+    background:#1f2937; color:white; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:1000;
+  }
   #toolsMenu {
-    position:absolute; top:10px; right:10px; z-index:1000;
-    background:rgba(31,41,55,0.95); color:white; padding:10px;
-    border-radius:8px; max-height:90vh; overflow-y:auto; width:220px;
-    transition:width 0.3s;
+    position:absolute; top:60px; right:10px;
+    background:rgba(31,41,55,0.95); color:white; padding:10px; border-radius:8px;
+    display:none; z-index:1000;
   }
-  #toolsMenu.collapsed { width:40px; overflow:hidden; }
-  #toolsMenu h2 { cursor:pointer; margin-bottom:8px; }
-  #toolsMenu button { width:100%; margin-bottom:4px; text-align:left; }
-  #pointerInfo { margin-top:4px; font-size:12px; }
-  #myPosBtn {
-    position:absolute; bottom:20px; right:20px; z-index:1000;
-    background:#2563eb; color:white; padding:10px; border-radius:50%;
-    cursor:pointer; display:flex; flex-direction:column; align-items:center;
-    justify-content:center;
+  #gpsButton {
+    position:absolute; bottom:10px; right:10px;
+    width:30px; height:30px; border-radius:50%;
+    background:#3b82f6; display:flex; align-items:center; justify-content:center;
+    color:white; cursor:pointer; z-index:1000;
   }
-  #myPosCoords { font-size:12px; color:white; margin-top:4px; text-align:center; }
+  #pointerCoords {
+    position:absolute; bottom:10px; left:10px;
+    background:rgba(31,41,55,0.8); color:white; padding:4px 8px; border-radius:4px;
+    font-size:12px; z-index:1000;
+  }
+  #crosshair {
+    position:absolute; top:50%; left:50%;
+    width:20px; height:20px;
+    margin-left:-10px; margin-top:-10px;
+    border:2px solid red; border-radius:50%;
+    z-index:1000; pointer-events:none;
+  }
 </style>
 </head>
 <body>
+
 <div id="map"></div>
+
+<!-- Menù ridotto -->
+<div id="menuIcon">☰</div>
 <div id="toolsMenu">
-  <h2 id="menuToggle">TOOLS ☰</h2>
-  <div id="menuContent">
-    <button id="addMarkerBtn" class="bg-blue-600 p-2 rounded">📍 Aggiungi Marker</button>
-    <button id="drawAreaBtn" class="bg-purple-600 p-2 rounded">🔷 Disegna Area</button>
-    <button id="measureBtn" class="bg-green-600 p-2 rounded">📏 Misura Distanza</button>
-    <button id="toggleBreadcrumbsBtn" class="bg-yellow-600 p-2 rounded">🛤️ Mostra Traccia</button>
-    <button id="exportBtn" class="bg-gray-600 p-2 rounded">💾 Esporta Dati</button>
-    <div id="pointerInfo"></div>
-  </div>
+  <button onclick="addMarkerPrompt()">Aggiungi Marker</button><br>
+  <button onclick="startMeasure()">Misura Distanza</button><br>
+  <button onclick="startDrawArea()">Disegna Area</button><br>
+  <button onclick="chooseCoordFormat()">Formato Coordinate</button>
 </div>
-<div id="myPosBtn">
-  <div>📌</div>
-  <div id="myPosCoords">-- , --</div>
-</div>
+
+<!-- Pulsante GPS -->
+<div id="gpsButton" title="Centra su di me">📍</div>
+
+<!-- Crocicchio e coordinate puntatore -->
+<div id="crosshair"></div>
+<div id="pointerCoords">-- , --</div>
 
 <script>
-// --- Setup mappa ---
-const map = L.map('map').setView([45.4642, 9.19], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OpenStreetMap', maxZoom:19 }).addTo(map);
+// Inizializza mappa
+const map = L.map('map').setView([45.0, 9.0], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
 
-// --- Layer groups ---
-const markersLayer = L.layerGroup().addTo(map);
-const areasLayer = L.layerGroup().addTo(map);
-const breadcrumbsLayer = L.layerGroup().addTo(map);
-const measureLayer = L.layerGroup().addTo(map);
+// Gestione menu
+const menuIcon = document.getElementById('menuIcon');
+const toolsMenu = document.getElementById('toolsMenu');
+menuIcon.onclick = () => toolsMenu.style.display = toolsMenu.style.display === 'none' ? 'block' : 'none';
 
-// --- Storage ---
-let markers = [], areas = [], breadcrumbs = [], measurePoints = [];
-let drawingArea=false;
+// Marker e area storage
+let markers = [];
+let areas = [];
+let measurePoints = [];
+let coordFormat = 'dd';
 
-// --- Coordinate formats ---
-function formatDD(lat,lng){ return `${lat.toFixed(6)}, ${lng.toFixed(6)}`; }
-function formatDM(lat,lng){
-  const toDM = deg => { const d=Math.floor(deg); const m=(deg-d)*60; return `${d}° ${m.toFixed(4)}'`; };
-  return `${toDM(lat)} N/S, ${toDM(lng)} E/W`;
-}
-function formatDMS(lat,lng){
-  const toDMS = deg => {
-    const d=Math.floor(deg);
-    const m=Math.floor((deg-d)*60);
-    const s=((deg-d-m/60)*3600).toFixed(2);
-    return `${d}°${m}'${s}"`;
-  };
-  return `${toDMS(lat)} N/S, ${toDMS(lng)} E/W`;
-}
-function toUTM(lat,lng){
-  // semplificato, solo per esempio
-  const zone = Math.floor((lng+180)/6)+1;
-  return `UTM Zone ${zone} (${lat.toFixed(2)},${lng.toFixed(2)})`;
-}
-function toMGRS(lat,lng){ return `MGRS (${lat.toFixed(2)},${lng.toFixed(2)})`; }
-
-// --- Distance and bearing ---
-function calculateDistance(lat1,lon1,lat2,lon2){
-  const R=6371000;
-  const φ1 = lat1*Math.PI/180, φ2=lat2*Math.PI/180;
-  const Δφ=(lat2-lat1)*Math.PI/180, Δλ=(lon2-lon1)*Math.PI/180;
-  const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-  const c = 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  return R*c;
-}
-function calculateBearing(lat1,lon1,lat2,lon2){
-  const φ1 = lat1*Math.PI/180, φ2=lat2*Math.PI/180;
-  const Δλ=(lon2-lon1)*Math.PI/180;
-  const y=Math.sin(Δλ)*Math.cos(φ2);
-  const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-  return (Math.atan2(y,x)*180/Math.PI+360)%360;
-}
-
-// --- Menù toggle ---
-document.getElementById('menuToggle').onclick = () => {
-  document.getElementById('toolsMenu').classList.toggle('collapsed');
-};
-
-// --- Puntatore ---
-map.on('mousemove', (e)=>{
-  const lat=e.latlng.lat, lng=e.latlng.lng;
-  document.getElementById('pointerInfo').innerHTML = `<b>Mouse:</b> DD: ${formatDD(lat,lng)}<br>DM: ${formatDM(lat,lng)}<br>DMS: ${formatDMS(lat,lng)}<br>UTM: ${toUTM(lat,lng)}<br>MGRS: ${toMGRS(lat,lng)}`;
+// Crocicchio coordinate
+const pointerCoords = document.getElementById('pointerCoords');
+map.on('move', () => {
+  const c = map.getCenter();
+  pointerCoords.innerText = formatCoords(c.lat, c.lng);
 });
 
-// --- Pulsante posizione ---
-const myPosBtn = document.getElementById('myPosBtn');
-const myPosCoords = document.getElementById('myPosCoords');
-let userMarker=null;
-function updateUserPosition(pos){
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
-  myPosCoords.innerText = formatDD(lat,lng);
-  if(userMarker) userMarker.setLatLng([lat,lng]);
-  else userMarker=L.marker([lat,lng],{title:"Tua Posizione"}).addTo(map);
-}
-navigator.geolocation.watchPosition(updateUserPosition);
+// Pulsante GPS
+document.getElementById('gpsButton').onclick = () => {
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      map.setView([lat,lng], 17);
+    });
+  }
+};
 
-// --- Tools ---
-document.getElementById('addMarkerBtn').onclick=()=>{
-  map.once('click',(e)=>{
-    const popupContent = `📍<br>DD: ${formatDD(e.latlng.lat,e.latlng.lng)}<br>DM: ${formatDM(e.latlng.lat,e.latlng.lng)}<br>DMS: ${formatDMS(e.latlng.lat,e.latlng.lng)}<br>UTM: ${toUTM(e.latlng.lat,e.latlng.lng)}<br>MGRS: ${toMGRS(e.latlng.lat,e.latlng.lng)}`;
-    L.marker([e.latlng.lat,e.latlng.lng]).addTo(markersLayer).bindPopup(popupContent);
-    markers.push({lat:e.latlng.lat,lng:e.latlng.lng});
-  });
-};
-document.getElementById('drawAreaBtn').onclick=()=>{
-  drawingArea=true; let areaPoints=[];
-  map.on('click', function f(e){
+// Funzioni coordinate
+function formatCoords(lat,lng){
+  switch(coordFormat){
+    case 'dd': return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    case 'dms': return toDMS(lat,lng);
+    case 'dm': return toDM(lat,lng);
+    default: return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  }
+}
+function toDMS(lat,lng){
+  function conv(d, isLat){
+    const dir = d>=0?(isLat?'N':'E'):(isLat?'S':'W');
+    d=Math.abs(d);
+    const deg=Math.floor(d);
+    const min=Math.floor((d-deg)*60);
+    const sec=((d-deg-min/60)*3600).toFixed(2);
+    return `${deg}°${min}'${sec}" ${dir}`;
+  }
+  return `${conv(lat,true)} ${conv(lng,false)}`;
+}
+function toDM(lat,lng){
+  function conv(d,isLat){
+    const dir=d>=0?(isLat?'N':'E'):(isLat?'S':'W');
+    d=Math.abs(d);
+    const deg=Math.floor(d);
+    const min=((d-deg)*60).toFixed(4);
+    return `${deg}°${min}' ${dir}`;
+  }
+  return `${conv(lat,true)} ${conv(lng,false)}`;
+}
+
+// Tools
+function addMarkerPrompt(){
+  const title = prompt("Nome marker:");
+  if(title && map.getCenter()){
+    const c = map.getCenter();
+    const marker = L.marker([c.lat,c.lng],{title}).addTo(map);
+    markers.push(marker);
+    alert(`Marker aggiunto: ${title}\n${formatCoords(c.lat,c.lng)}`);
+  }
+}
+function startMeasure(){
+  alert("Clicca sulla mappa per aggiungere punti di misura.");
+  map.on('click', measureClick);
+}
+function measureClick(e){
+  measurePoints.push(e.latlng);
+  L.circleMarker(e.latlng,{color:'blue'}).addTo(map);
+  if(measurePoints.length>=2){
+    const d = map.distance(measurePoints[measurePoints.length-2],measurePoints[measurePoints.length-1]);
+    alert(`Distanza segment: ${d.toFixed(2)} m`);
+  }
+}
+function startDrawArea(){
+  alert("Clicca sulla mappa per aggiungere punti area.");
+  const areaPoints = [];
+  const handler = (e)=>{
     areaPoints.push([e.latlng.lat,e.latlng.lng]);
+    L.circleMarker(e.latlng,{color:'green'}).addTo(map);
     if(areaPoints.length>=3){
-      L.polygon(areaPoints,{color:'purple',fillOpacity:0.2}).addTo(areasLayer);
-      areas.push(areaPoints);
-      map.off('click',f); drawingArea=false;
+      const poly = L.polygon(areaPoints,{color:'green',fillOpacity:0.2}).addTo(map);
+      areas.push(poly);
+      map.off('click', handler);
+      alert('Area creata!');
     }
-  });
-};
-document.getElementById('measureBtn').onclick=()=>{
-  measurePoints=[]; measureLayer.clearLayers();
-  map.once('click',(e)=>{ 
-    measurePoints.push([e.latlng.lat,e.latlng.lng]); 
-    L.circleMarker([e.latlng.lat,e.latlng.lng],{radius:4,color:'green'}).addTo(measureLayer); 
-  });
-};
-document.getElementById('toggleBreadcrumbsBtn').onclick=()=>{
-  breadcrumbsLayer.clearLayers();
-  breadcrumbs.forEach(p=>L.circleMarker([p.lat,p.lng],{radius:3,color:'yellow'}).addTo(breadcrumbsLayer));
-};
+  };
+  map.on('click', handler);
+}
+function chooseCoordFormat(){
+  const f = prompt("Formato coordinate (dd, dm, dms):",coordFormat);
+  if(['dd','dm','dms'].includes(f)) coordFormat=f;
+}
 </script>
 </body>
 </html>

@@ -1,156 +1,194 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AmeTak Map</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-family: 'Inter', sans-serif;
-    }
-    #map {
-      height: 100%;
-      width: 100%;
-    }
-    /* Crocicchio al centro */
-    #crosshair {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 20px;
-      height: 20px;
-      margin-left: -10px;
-      margin-top: -10px;
-      border: 2px solid red;
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 10;
-    }
-    /* Coordinate in basso a sinistra */
-    #coords {
-      position: absolute;
-      bottom: 15px;
-      left: 15px;
-      background: rgba(0, 0, 0, 0.6);
-      color: white;
-      padding: 5px 10px;
-      border-radius: 8px;
-      font-size: 13px;
-      z-index: 11;
-    }
-    /* Pulsante posizione in basso a destra */
-    #locateBtn {
-      position: absolute;
-      bottom: 15px;
-      right: 15px;
-      background: white;
-      border-radius: 50%;
-      border: 2px solid #555;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 11;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    }
-    #locateBtn:hover {
-      background: #eee;
-    }
-    /* Menù laterale (vuoto) */
-    #menu {
-      position: absolute;
-      top: 0;
-      right: -250px;
-      width: 250px;
-      height: 100%;
-      background: rgba(255, 255, 255, 0.95);
-      box-shadow: -3px 0 5px rgba(0,0,0,0.2);
-      transition: right 0.3s ease;
-      z-index: 12;
-      padding: 10px;
-    }
-    #menu.open {
-      right: 0;
-    }
-    /* Pulsante apertura menù */
-    #menuBtn {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 45px;
-      height: 45px;
-      cursor: pointer;
-      z-index: 13;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      font-size: 20px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tactical Map PRO</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/proj4/dist/proj4.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:system-ui;overflow:hidden;}
+#map{width:100%;height:100%;z-index:1;}
+
+/* Header */
+.header{position:absolute;top:0;left:0;right:0;height:50px;background:rgba(31,41,55,0.95);color:white;z-index:1001;display:flex;justify-content:space-between;align-items:center;padding:0 10px;border-bottom:1px solid #374151;backdrop-filter:blur(10px);}
+.header-left{display:flex;align-items:center;gap:8px;}
+.header-title{font-weight:bold;font-size:14px;}
+.header-subtitle{font-size:10px;color:#9ca3af;}
+.btn{padding:6px 10px;background:#374151;border:none;border-radius:4px;color:white;cursor:pointer;font-size:18px;}
+.btn:hover{background:#4b5563;}
+.btn:active{background:#6b7280;}
+
+/* Info Panel */
+.info-panel{position:absolute;top:60px;left:10px;right:10px;background:rgba(31,41,55,0.98);color:white;padding:12px;border-radius:8px;z-index:1000;border:1px solid #374151;max-width:400px;backdrop-filter:blur(10px);}
+.info-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+.info-label{font-size:10px;color:#9ca3af;margin-bottom:4px;}
+select,input,textarea{width:100%;padding:6px;background:#374151;border:1px solid #4b5563;border-radius:4px;color:white;font-size:12px;}
+.info-value{font-family:monospace;font-size:11px;color:#10b981;background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;margin-bottom:8px;word-break:break-all;}
+.info-stats{background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;}
+.info-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.info-stat-label{font-size:9px;color:#9ca3af;}
+.info-stat-value{font-family:monospace;font-size:11px;font-weight:bold;}
+
+/* Layer Selector */
+.layer-selector{position:absolute;top:60px;right:10px;background:rgba(31,41,55,0.95);color:white;padding:8px;border-radius:8px;z-index:1000;backdrop-filter:blur(10px);display:none;}
+.layer-selector.open{display:block;}
+.layer-btn{padding:8px 12px;margin:4px 0;width:100%;background:#374151;border:none;color:white;border-radius:4px;cursor:pointer;font-size:12px;}
+.layer-btn:hover{background:#4b5563;}
+.layer-btn.active{background:#10b981;}
+
+/* Mirino GPS */
+#gpsTarget{position:absolute;width:20px;height:20px;top:50%;left:50%;margin-left:-10px;margin-top:-10px;z-index:1000;pointer-events:none;}
+#gpsTarget::before,#gpsTarget::after{content:"";position:absolute;background:#3b82f6;}
+#gpsTarget::before{width:100%;height:2px;top:50%;left:0;margin-top:-1px;}
+#gpsTarget::after{width:2px;height:100%;top:0;left:50%;margin-left:-1px;}
+
+/* GPS Status */
+.gps-status{position:absolute;bottom:20px;left:10px;background:rgba(31,41,55,0.95);color:white;padding:8px 12px;border-radius:8px;font-size:11px;z-index:1000;backdrop-filter:blur(10px);}
+.gps-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+.gps-dot.active{background:#10b981;animation:pulse 2s infinite;}
+.gps-dot.inactive{background:#ef4444;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.7;}}
+</style>
 </head>
 <body>
-  <div id="map"></div>
-  <div id="crosshair"></div>
-  <div id="coords">Lat: –, Lng: –</div>
-  <div id="locateBtn" title="La mia posizione">📍</div>
-  <button id="menuBtn">☰</button>
-  <div id="menu"></div>
+<div id="map"></div>
 
-  <script>
-    let map, marker;
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <span style="font-size:20px;">🎯</span>
+    <div>
+      <div class="header-title">TACTICAL MAP PRO</div>
+      <div class="header-subtitle">ALPHA-1</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn" onclick="toggleLayers()" title="Mappe">🗺️</button>
+  </div>
+</div>
 
-    function initMap() {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 41.8719, lng: 12.5674 }, // centro Italia
-        zoom: 6,
-        mapTypeId: "satellite",
-        disableDefaultUI: true,
-      });
+<!-- Info Panel -->
+<div class="info-panel" id="infoPanel">
+  <div class="info-row">
+    <div>
+      <div class="info-label">Formato</div>
+      <select id="coordFormat" onchange="updateCoords()">
+        <option value="dd">DD</option>
+        <option value="dms">DMS</option>
+        <option value="dm">DM</option>
+        <option value="utm">UTM</option>
+        <option value="mgrs">MGRS</option>
+      </select>
+    </div>
+  </div>
+  <div class="info-value" id="coordsDisplay">Attendi GPS...</div>
+  <div class="info-stats">
+    <div class="info-stats-grid">
+      <div>
+        <div class="info-stat-label">Acc</div>
+        <div class="info-stat-value" id="accValue">--</div>
+      </div>
+      <div>
+        <div class="info-stat-label">Alt</div>
+        <div class="info-stat-value" id="altValue">--</div>
+      </div>
+      <div>
+        <div class="info-stat-label">Vel</div>
+        <div class="info-stat-value" id="velValue">--</div>
+      </div>
+    </div>
+  </div>
+</div>
 
-      const coordsEl = document.getElementById("coords");
+<!-- Layer Selector -->
+<div class="layer-selector" id="layerSelector">
+  <button class="layer-btn active" onclick="changeMap('street')">🗺️ Street</button>
+  <button class="layer-btn" onclick="changeMap('satellite')">🛰️ Satellite</button>
+  <button class="layer-btn" onclick="changeMap('topo')">⛰️ Topografica</button>
+  <button class="layer-btn" onclick="changeMap('dark')">🌙 Dark</button>
+</div>
 
-      map.addListener("center_changed", () => {
-        const center = map.getCenter();
-        coordsEl.textContent = `Lat: ${center.lat().toFixed(6)}, Lng: ${center.lng().toFixed(6)}`;
-      });
+<!-- Mirino -->
+<div id="gpsTarget"></div>
 
-      document.getElementById("locateBtn").addEventListener("click", () => {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(pos => {
-            const userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            map.setCenter(userPos);
-            map.setZoom(16);
-            coordsEl.textContent = `Lat: ${userPos.lat.toFixed(6)}, Lng: ${userPos.lng.toFixed(6)}`;
-          }, () => {
-            alert("Impossibile ottenere la posizione GPS.");
-          });
-        } else {
-          alert("Geolocalizzazione non supportata dal browser.");
-        }
-      });
+<!-- GPS Status -->
+<div class="gps-status">
+  <span class="gps-dot inactive" id="gpsDot"></span>
+  <span id="gpsStatus">GPS: Ricerca...</span>
+</div>
 
-      // Menù toggle
-      const menu = document.getElementById("menu");
-      const btn = document.getElementById("menuBtn");
-      btn.addEventListener("click", () => {
-        menu.classList.toggle("open");
-      });
+<script>
+// MAP INIT
+let map = L.map('map').setView([41.9028,12.4964],6);
+let baseLayers = {
+  street:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OSM'}).addTo(map),
+  satellite:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenTopoMap'}),
+  topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenTopoMap'}),
+  dark:L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_dark/{z}/{x}/{y}{r}.png',{maxZoom:20, attribution:'© Stadia Maps'})
+};
+let currentLayer = 'street';
+function changeMap(layer){
+  if(currentLayer!==layer){
+    map.removeLayer(baseLayers[currentLayer]);
+    baseLayers[layer].addTo(map);
+    document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));
+    event.target.classList.add('active');
+    currentLayer = layer;
+    document.getElementById('layerSelector').classList.remove('open');
+  }
+}
+function toggleLayers(){ document.getElementById('layerSelector').classList.toggle('open'); }
 
-      // Chiudi menù quando muovo la mappa
-      map.addListener("dragstart", () => {
-        menu.classList.remove("open");
-      });
-    }
-  </script>
+// GPS
+let gpsActive = false;
+let userLocation = null;
 
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&callback=initMap"></script>
+function toDMS(lat,lng){
+  function dms(v){let deg=Math.floor(v);let min=Math.floor((v-deg)*60);let sec=((v-deg)*60-min)*60;return deg+'°'+min+"'"+sec.toFixed(2)+'"';}
+  return dms(lat)+', '+dms(lng);
+}
+function toDM(lat,lng){
+  function dm(v){let deg=Math.floor(v);let min=(v-deg)*60;return deg+'°'+min.toFixed(4)+"'";}
+  return dm(lat)+', '+dm(lng);
+}
+function toUTM(lat,lng){
+  let utm=proj4('EPSG:4326','EPSG:32633',[lng,lat]); // default zone 33N
+  return utm[0].toFixed(2)+', '+utm[1].toFixed(2);
+}
+function toMGRS(lat,lng){
+  return proj4('EPSG:4326','EPSG:3857',[lng,lat]).map(c=>Math.round(c)).join(','); // semplice approssimazione
+}
+function updateCoords(){
+  if(!userLocation) return;
+  const f=document.getElementById('coordFormat').value;
+  let text='';
+  if(f==='dd') text=userLocation.lat.toFixed(6)+', '+userLocation.lng.toFixed(6);
+  else if(f==='dms') text=toDMS(userLocation.lat,userLocation.lng);
+  else if(f==='dm') text=toDM(userLocation.lat,userLocation.lng);
+  else if(f==='utm') text=toUTM(userLocation.lat,userLocation.lng);
+  else if(f==='mgrs') text=toMGRS(userLocation.lat,userLocation.lng);
+  document.getElementById('coordsDisplay').textContent=text;
+}
+
+// GPS INIT
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(pos=>{ gpsActive=true; updateUserLocation(pos); }, err=>{alert('GPS non attivo');});
+  navigator.geolocation.watchPosition(updateUserLocation, err=>console.error(err), { enableHighAccuracy:true, timeout:15000, maximumAge:5000 });
+} else { alert('GPS non supportato'); }
+
+function updateUserLocation(pos){
+  userLocation={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:pos.coords.accuracy,alt:pos.coords.altitude,speed:pos.coords.speed};
+  map.setView([userLocation.lat,userLocation.lng]);
+  document.getElementById('gpsDot').classList.add('active'); document.getElementById('gpsDot').classList.remove('inactive');
+  document.getElementById('gpsStatus').textContent='GPS: Attivo';
+  updateCoords();
+  document.getElementById('accValue').textContent='±'+Math.round(userLocation.acc)+'m';
+  document.getElementById('altValue').textContent=userLocation.alt?Math.round(userLocation.alt)+'m':'N/A';
+  document.getElementById('velValue').textContent=userLocation.speed?(userLocation.speed*3.6).toFixed(1)+' km/h':'0 km/h';
+}
+</script>
 </body>
 </html>

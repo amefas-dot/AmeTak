@@ -24,11 +24,10 @@
 </head>
 <body>
   <div id="root"></div>
-  
+
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // Storage
     const storage = {
       get: (key) => {
         try {
@@ -39,31 +38,28 @@
       set: (key, value) => {
         try {
           localStorage.setItem(key, JSON.stringify(value));
-          return true;
-        } catch { return false; }
+        } catch {}
       }
     };
 
     const TacticalApp = () => {
-      // Stati principali
       const [userLocation, setUserLocation] = useState(null);
       const [markers, setMarkers] = useState([]);
       const [messages, setMessages] = useState([]);
       const [routes, setRoutes] = useState([]);
       const [areas, setAreas] = useState([]);
       const [breadcrumbs, setBreadcrumbs] = useState([]);
-      const [teamMembers, setTeamMembers] = useState([]);
-      
-      // UI
+
       const [showMenu, setShowMenu] = useState(false);
       const [showChat, setShowChat] = useState(false);
       const [showLayers, setShowLayers] = useState(false);
       const [selectedMarker, setSelectedMarker] = useState(null);
-      const [addingMarker, setAddingMarker] = useState(false);
-      const [measuringDistance, setMeasuringDistance] = useState(false);
-      const [drawingArea, setDrawingArea] = useState(false);
-      
-      // Config
+
+      const [markerForm, setMarkerForm] = useState({ title: '', description: '', type: 'waypoint' });
+      const [chatMessage, setChatMessage] = useState('');
+      const [measurePoints, setMeasurePoints] = useState([]);
+      const [areaPoints, setAreaPoints] = useState([]);
+
       const [coordFormat, setCoordFormat] = useState('mgrs');
       const [datum, setDatum] = useState('wgs84');
       const [northReference, setNorthReference] = useState('true');
@@ -73,14 +69,7 @@
       const [magneticDeclination, setMagneticDeclination] = useState(0);
       const [gridConvergence, setGridConvergence] = useState(0);
       const [isEncrypted, setIsEncrypted] = useState(true);
-      
-      // Forms
-      const [markerForm, setMarkerForm] = useState({ title: '', description: '', type: 'waypoint' });
-      const [chatMessage, setChatMessage] = useState('');
-      const [measurePoints, setMeasurePoints] = useState([]);
-      const [areaPoints, setAreaPoints] = useState([]);
-      
-      // Layers
+
       const [activeLayers, setActiveLayers] = useState({
         team: true,
         markers: true,
@@ -89,11 +78,11 @@
         breadcrumbs: true,
         rangeCircles: false
       });
-      
-      const [currentUser] = useState({ 
-        id: 'user_' + Date.now(), 
-        name: 'Operatore', 
-        callsign: 'ALPHA-1' 
+
+      const [currentUser] = useState({
+        id: 'user_' + Date.now(),
+        name: 'Operatore',
+        callsign: 'ALPHA-1'
       });
 
       const watchIdRef = useRef(null);
@@ -111,16 +100,7 @@
         lz: { icon: '🚁', label: 'Landing Zone', color: '#22c55e' }
       };
 
-      const datumTransforms = {
-        wgs84: { name: 'WGS 84', deltaX: 0, deltaY: 0 },
-        nad83: { name: 'NAD 83', deltaX: 0, deltaY: 0 },
-        nad27: { name: 'NAD 27', deltaX: -8, deltaY: 160 },
-        ed50: { name: 'ED 50', deltaX: -87, deltaY: -98 },
-        osgb36: { name: 'OSGB 36', deltaX: 446.448, deltaY: -125.157 },
-        tokyo: { name: 'Tokyo', deltaX: -148, deltaY: 507 }
-      };
-
-      // Load data
+      // Load data from storage
       useEffect(() => {
         const data = storage.get('tactical-pro-data');
         if (data) {
@@ -132,392 +112,58 @@
         }
       }, []);
 
-      // Save data
+      // Save data to storage
       useEffect(() => {
-        const timer = setTimeout(() => {
-          storage.set('tactical-pro-data', { 
-            markers, 
-            messages: messages.slice(-100), 
-            routes, 
-            areas,
-            breadcrumbs: breadcrumbs.slice(-100)
-          });
-        }, 1000);
-        return () => clearTimeout(timer);
+        storage.set('tactical-pro-data', { markers, messages, routes, areas, breadcrumbs });
       }, [markers, messages, routes, areas, breadcrumbs]);
 
-      // GPS
+      // GPS tracking
       useEffect(() => {
         if ('geolocation' in navigator) {
-          navigator.geolocation.getCurrentPosition(
-            () => console.log('GPS OK'),
-            (err) => alert('GPS Error: ' + err.message)
-          );
-
           watchIdRef.current = navigator.geolocation.watchPosition(
-            (position) => {
-              const newLoc = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                accuracy: position.coords.accuracy,
-                altitude: position.coords.altitude,
-                speed: position.coords.speed,
-                timestamp: Date.now()
-              };
-              setUserLocation(newLoc);
-              
-              // Declinazione
-              setMagneticDeclination(-0.0001 * newLoc.lng + 0.0002 * newLoc.lat);
-              const zone = Math.floor((newLoc.lng + 180) / 6) + 1;
-              const cm = (zone - 1) * 6 - 180 + 3;
-              setGridConvergence((newLoc.lng - cm) * Math.sin(newLoc.lat * Math.PI / 180));
-              
-              // Breadcrumbs
-              if (position.coords.speed > 0.5) {
-                setBreadcrumbs(prev => {
-                  const last = prev[prev.length - 1];
-                  if (!last || Date.now() - last.timestamp > 30000) {
-                    return [...prev.slice(-100), newLoc];
-                  }
-                  return prev;
-                });
-              }
+            (pos) => {
+              const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              setUserLocation(loc);
+              setBreadcrumbs(prev => [...prev.slice(-99), loc]);
             },
-            (err) => console.error('GPS:', err),
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            (err) => console.error('GPS error:', err),
+            { enableHighAccuracy: true }
           );
         }
-        return () => {
-          if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
-        };
+        return () => { if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current); };
       }, []);
 
       // Orientation
       useEffect(() => {
-        const handleOrientation = (e) => {
-          if (e.alpha !== null) setHeading(Math.round(e.alpha));
-        };
+        const handleOrientation = e => e.alpha !== null && setHeading(Math.round(e.alpha));
         if (window.DeviceOrientationEvent) {
           if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
-              .then(state => {
-                if (state === 'granted') {
-                  window.addEventListener('deviceorientation', handleOrientation);
-                }
-              })
+              .then(state => state === 'granted' && window.addEventListener('deviceorientation', handleOrientation))
               .catch(console.error);
-          } else {
-            window.addEventListener('deviceorientation', handleOrientation);
-          }
+          } else window.addEventListener('deviceorientation', handleOrientation);
           return () => window.removeEventListener('deviceorientation', handleOrientation);
         }
       }, []);
 
-      // Coordinate formats
-      const applyDatumTransform = (lat, lng) => {
-        if (datum === 'wgs84') return { lat, lng };
-        const t = datumTransforms[datum];
-        const latOffset = t.deltaY / 111000;
-        const lngOffset = t.deltaX / (111000 * Math.cos(lat * Math.PI / 180));
-        return { lat: lat + latOffset, lng: lng + lngOffset };
+      const sendMessage = (text, type = 'user') => {
+        const msg = { id: Date.now(), text, sender: type==='user'?currentUser.callsign:'SYSTEM', timestamp: new Date().toISOString(), type, encrypted: isEncrypted };
+        setMessages([...messages, msg]);
       };
 
-      const formatDMS = (lat, lng) => {
-        const fmt = (deg, isLat) => {
-          const abs = Math.abs(deg);
-          const d = Math.floor(abs);
-          const m = Math.floor((abs - d) * 60);
-          const s = ((abs - d - m/60) * 3600).toFixed(2);
-          const dir = deg >= 0 ? (isLat ? 'N' : 'E') : (isLat ? 'S' : 'W');
-          return `${d}°${String(m).padStart(2,'0')}'${String(s).padStart(5,'0')}" ${dir}`;
-        };
-        return `${fmt(lat, true)} ${fmt(lng, false)}`;
-      };
-
-      const formatDM = (lat, lng) => {
-        const fmt = (deg, isLat) => {
-          const abs = Math.abs(deg);
-          const d = Math.floor(abs);
-          const m = ((abs - d) * 60).toFixed(4);
-          const dir = deg >= 0 ? (isLat ? 'N' : 'E') : (isLat ? 'S' : 'W');
-          return `${d}° ${String(m).padStart(7,'0')}' ${dir}`;
-        };
-        return `${fmt(lat, true)} ${fmt(lng, false)}`;
-      };
-
-      const formatDD = (lat, lng) => `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-
-      const formatUTM = (lat, lng) => {
-        const zone = Math.floor((lng + 180) / 6) + 1;
-        const letter = 'CDEFGHJKLMNPQRSTUVWXX'[Math.floor((lat + 80) / 8)];
-        const a = 6378137.0, e = 0.081819191, k0 = 0.9996;
-        const latRad = lat * Math.PI / 180;
-        const lngRad = lng * Math.PI / 180;
-        const lngOrigin = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
-        const N = a / Math.sqrt(1 - e * e * Math.sin(latRad) * Math.sin(latRad));
-        const T = Math.tan(latRad) * Math.tan(latRad);
-        const C = (e * e / (1 - e * e)) * Math.cos(latRad) * Math.cos(latRad);
-        const A = (lngRad - lngOrigin) * Math.cos(latRad);
-        const M = a * ((1 - e*e/4 - 3*e*e*e*e/64) * latRad
-            - (3*e*e/8 + 3*e*e*e*e/32) * Math.sin(2*latRad)
-            + (15*e*e*e*e/256) * Math.sin(4*latRad));
-        let easting = k0 * N * (A + (1-T+C) * A*A*A/6
-            + (5-18*T+T*T+72*C) * Math.pow(A,5)/120) + 500000.0;
-        let northing = k0 * (M + N * Math.tan(latRad) * (A*A/2
-            + (5-T+9*C+4*C*C) * Math.pow(A,4)/24
-            + (61-58*T+T*T+600*C) * Math.pow(A,6)/720));
-        if (lat < 0) northing += 10000000.0;
-        return `${zone}${letter} ${Math.round(easting)}mE ${Math.round(northing)}mN`;
-      };
-
-      const formatMGRS = (lat, lng) => {
-        const utm = formatUTM(lat, lng);
-        const parts = utm.split(' ');
-        const zone = parts[0];
-        const easting = parseInt(parts[1]);
-        const northing = parseInt(parts[2]);
-        const e100k = Math.floor(easting / 100000);
-        const n100k = Math.floor(northing / 100000);
-        const eLetters = 'ABCDEFGHJKLMNPQRSTUV';
-        const nLetters = 'ABCDEFGHJKLMNPQRSTUV';
-        const grid = eLetters[e100k % 8] + nLetters[n100k % 20];
-        const e10k = String(Math.floor((easting % 100000) / 10)).padStart(4, '0');
-        const n10k = String(Math.floor((northing % 100000) / 10)).padStart(4, '0');
-        return `${zone} ${grid} ${e10k} ${n10k}`;
-      };
-
-      const formatCoordinates = (lat, lng, fmt = coordFormat) => {
-        const t = applyDatumTransform(lat, lng);
-        switch(fmt) {
-          case 'dms': return formatDMS(t.lat, t.lng);
-          case 'dm': return formatDM(t.lat, t.lng);
-          case 'dd': return formatDD(t.lat, t.lng);
-          case 'utm': return formatUTM(t.lat, t.lng);
-          case 'mgrs': return formatMGRS(t.lat, t.lng);
-          default: return formatMGRS(t.lat, t.lng);
-        }
-      };
-
-      // Azimuth
-      const convertAzimuth = (az) => {
-        let result = az;
-        if (northReference === 'magnetic') result += magneticDeclination;
-        if (northReference === 'grid') result += gridConvergence;
-        while (result < 0) result += 360;
-        while (result >= 360) result -= 360;
-        return result;
-      };
-
-      const formatAzimuth = (deg) => {
-        const az = convertAzimuth(deg);
-        return azimuthFormat === 'mils' 
-          ? `${Math.round((az / 360) * 6400)}`
-          : `${Math.round(az)}°`;
-      };
-
-      // Calculations
-      const calculateDistance = (lat1, lng1, lat2, lng2) => {
-        const R = 6371000;
-        const φ1 = lat1 * Math.PI / 180;
-        const φ2 = lat2 * Math.PI / 180;
-        const Δφ = (lat2 - lat1) * Math.PI / 180;
-        const Δλ = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                  Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-      };
-
-      const calculateBearing = (lat1, lng1, lat2, lng2) => {
-        const φ1 = lat1 * Math.PI / 180;
-        const φ2 = lat2 * Math.PI / 180;
-        const Δλ = (lng2 - lng1) * Math.PI / 180;
-        const y = Math.sin(Δλ) * Math.cos(φ2);
-        const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-        return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-      };
-
-      const calculateETA = (distance, speed = 1.4) => {
-        const sec = distance / speed;
-        const h = Math.floor(sec / 3600);
-        const m = Math.floor((sec % 3600) / 60);
-        return h > 0 ? `${h}h ${m}m` : `${m}m`;
-      };
-
-      const getTotalDistance = () => {
-        if (measurePoints.length < 2) return 0;
-        let total = 0;
-        for (let i = 0; i < measurePoints.length - 1; i++) {
-          total += calculateDistance(
-            measurePoints[i].lat, measurePoints[i].lng,
-            measurePoints[i + 1].lat, measurePoints[i + 1].lng
-          );
-        }
-        return total;
-      };
-
-      // Actions
       const addMarker = () => {
         if (markerForm.title.trim() && userLocation) {
-          const m = {
-            id: Date.now(),
-            lat: userLocation.lat,
-            lng: userLocation.lng,
-            title: markerForm.title,
-            description: markerForm.description,
-            type: markerForm.type,
-            createdBy: currentUser.callsign,
-            timestamp: new Date().toISOString(),
-            shared: true
-          };
+          const m = { id: Date.now(), ...userLocation, ...markerForm, createdBy: currentUser.callsign, timestamp: new Date().toISOString() };
           setMarkers([...markers, m]);
-          setMarkerForm({ title: '', description: '', type: 'waypoint' });
-          setAddingMarker(false);
+          setMarkerForm({ title:'', description:'', type:'waypoint' });
           sendMessage(`📍 Marker aggiunto: ${m.title}`, 'system');
         }
       };
 
-      const deleteMarker = (id) => {
-        setMarkers(markers.filter(m => m.id !== id));
-        setSelectedMarker(null);
-      };
-
-      const sendMessage = (text, type = 'user') => {
-        const msg = {
-          id: Date.now(),
-          text,
-          sender: type === 'user' ? currentUser.callsign : 'SYSTEM',
-          timestamp: new Date().toISOString(),
-          type,
-          encrypted: isEncrypted
-        };
-        setMessages([...messages, msg]);
-      };
-
-      const handleSendMessage = () => {
-        if (chatMessage.trim()) {
-          sendMessage(chatMessage);
-          setChatMessage('');
-        }
-      };
-
-      const addMeasurePoint = () => {
-        if (userLocation) setMeasurePoints([...measurePoints, userLocation]);
-      };
-
-      const addAreaPoint = () => {
-        if (userLocation) setAreaPoints([...areaPoints, userLocation]);
-      };
-
-      const completeArea = () => {
-        if (areaPoints.length >= 3) {
-          const a = {
-            id: Date.now(),
-            points: areaPoints,
-            name: `Area ${areas.length + 1}`,
-            createdBy: currentUser.callsign,
-            timestamp: new Date().toISOString()
-          };
-          setAreas([...areas, a]);
-          setAreaPoints([]);
-          setDrawingArea(false);
-          sendMessage(`🔷 Area creata: ${a.name}`, 'system');
-        }
-      };
-
-      // Export
-      const exportKML = () => {
-        let kml = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>Tactical Export</name>
-`;
-        markers.forEach(m => {
-          kml += `    <Placemark>
-      <name>${m.title}</name>
-      <description>${m.description || ''}</description>
-      <Point>
-        <coordinates>${m.lng},${m.lat},0</coordinates>
-      </Point>
-    </Placemark>
-`;
-        });
-        kml += `  </Document>
-</kml>`;
-        const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `tactical_${Date.now()}.kml`;
-        a.click();
-      };
-
-      const exportGPX = () => {
-        let gpx = `<?xml version="1.0"?>
-<gpx version="1.1" creator="TacticalApp">
-  <metadata>
-    <name>Tactical Data</name>
-    <time>${new Date().toISOString()}</time>
-  </metadata>
-`;
-        markers.forEach(m => {
-          gpx += `  <wpt lat="${m.lat}" lon="${m.lng}">
-    <name>${m.title}</name>
-    <desc>${m.description || ''}</desc>
-    <type>${m.type}</type>
-  </wpt>
-`;
-        });
-        gpx += `</gpx>`;
-        const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `tactical_${Date.now()}.gpx`;
-        a.click();
-      };
-
-      const exportJSON = () => {
-        const data = {
-          version: '1.0',
-          datum,
-          exported: new Date().toISOString(),
-          user: currentUser.callsign,
-          markers,
-          routes,
-          areas,
-          messages: messages.slice(-50)
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `tactical_${Date.now()}.json`;
-        a.click();
-      };
-
-      const importData = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          try {
-            const data = JSON.parse(ev.target.result);
-            if (data.markers) setMarkers([...markers, ...data.markers]);
-            if (data.routes) setRoutes([...routes, ...data.routes]);
-            if (data.areas) setAreas([...areas, ...data.areas]);
-            sendMessage(`✅ Importati ${data.markers?.length || 0} markers`, 'system');
-          } catch (err) {
-            sendMessage(`❌ Errore: ${err.message}`, 'system');
-          }
-        };
-        reader.readAsText(file);
-      };
-
       return (
-        <div className="h-screen w-screen bg-gray-900 text-white flex flex-col overflow-hidden">
+        <div className="h-screen w-screen bg-gray-900 text-white flex flex-col">
           {/* Header */}
-          <div className="bg-gray-800 border-b border-gray-700 p-2 flex items-center justify-between">
+          <div className="bg-gray-800 p-2 flex justify-between items-center border-b border-gray-700">
             <div className="flex items-center gap-2">
               <span className="text-green-500 text-xl">🎯</span>
               <div>
@@ -525,79 +171,25 @@
                 <div className="text-xs text-gray-400">{currentUser.callsign}</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2">
               {isEncrypted && <span className="text-green-500 text-xs">🔒</span>}
-              <button onClick={() => setShowChat(!showChat)} className="p-2 hover:bg-gray-700 rounded relative">
+              <button onClick={()=>setShowChat(!showChat)} className="p-2 hover:bg-gray-700 rounded relative">
                 <span className="text-lg">💬</span>
-                {messages.length > 0 && (
-                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-                )}
+                {messages.length>0 && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>}
               </button>
-              <button onClick={() => setShowLayers(!showLayers)} className="p-2 hover:bg-gray-700 rounded">
+              <button onClick={()=>setShowLayers(!showLayers)} className="p-2 hover:bg-gray-700 rounded">
                 <span className="text-lg">📊</span>
               </button>
-              <button onClick={() => setShowMenu(!showMenu)} className="p-2 hover:bg-gray-700 rounded">
-                <span className="text-lg">{showMenu ? '✕' : '☰'}</span>
+              <button onClick={()=>setShowMenu(!showMenu)} className="p-2 hover:bg-gray-700 rounded">
+                <span className="text-lg">{showMenu?'✕':'☰'}</span>
               </button>
             </div>
           </div>
 
           {/* Map */}
-          <div className="flex-1 relative overflow-hidden">
-            <div className={`absolute inset-0 ${
-              mapLayer === 'satellite' ? 'bg-gray-800' :
-              mapLayer === 'topo' ? 'bg-gradient-to-br from-green-900 to-green-800' :
-              'bg-gray-700'
-            }`}
-            style={{
-              backgroundImage: mapLayer === 'standard' ?
-                'repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255,255,255,0.03) 50px, rgba(255,255,255,0.03) 51px), repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255,255,255,0.03) 50px, rgba(255,255,255,0.03) 51px)' :
-                'none'
-            }}>
-              
-              {/* User */}
-              {userLocation && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                  <div className="relative">
-                    <div className="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg animate-pulse"></div>
-                    <div className="absolute top-1/2 left-1/2 w-20 h-20 border-2 border-blue-500 rounded-full opacity-30 transform -translate-x-1/2 -translate-y-1/2"></div>
-                    <div className="absolute top-0 left-1/2 w-0.5 h-10 bg-blue-500 origin-bottom transform -translate-x-1/2"
-                         style={{ transform: `translateX(-50%) rotate(${heading}deg)` }}></div>
-                  </div>
-                </div>
-              )}
+          <div className="flex-1 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-900 to-green-800"></div>
 
-              {/* Breadcrumbs */}
-              {activeLayers.breadcrumbs && breadcrumbs.map((p, i) => (
-                <div key={i} className="absolute w-1.5 h-1.5 bg-cyan-400 rounded-full opacity-50"
-                     style={{ top: `${45 + (i % 10) * 2}%`, left: `${45 + (i % 8) * 2}%` }}></div>
-              ))}
-
-              {/* Markers */}
-              {activeLayers.markers && markers.map((m, i) => (
-                <div key={m.id} className="absolute cursor-pointer transform -translate-x-1/2 -translate-y-1/2 z-20"
-                     style={{ top: `${35 + (i * 8) % 40}%`, left: `${35 + (i * 10) % 50}%` }}
-                     onClick={() => setSelectedMarker(m)}>
-                  <div className="text-2xl hover:scale-125 transition-transform filter drop-shadow-lg">
-                    {markerTypes[m.type].icon}
-                  </div>
-                </div>
-              ))}
-
-              {/* Areas */}
-              {activeLayers.areas && areas.map((a, i) => (
-                <div key={a.id} className="absolute border-2 border-yellow-500 bg-yellow-500 bg-opacity-10 rounded-lg"
-                     style={{ top: `${30 + i * 15}%`, left: `${30 + i * 10}%`, width: '150px', height: '100px' }}>
-                  <div className="text-xs p-1 bg-gray-900 bg-opacity-75 rounded">{a.name}</div>
-                </div>
-              ))}
-
-              {/* Measure Points */}
-              {measuringDistance && measurePoints.map((p, i) => (
-                <div key={i} className="absolute w-2 h-2 bg-red-500 rounded-full border border-white"
-                     style={{ top: `${50 + i * 5}%`, left: `${50 + i * 5}%`, transform: 'translate(-50%, -50%)' }}></div>
-              ))}
-            </div>
-
-            {/* Info Panel */}
-            {userLocation &&
+            {/* User marker */}
+            {userLocation && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1

@@ -4,152 +4,167 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tactical System PRO</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.5/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.5/dist/leaflet.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.2/dist/tailwind.min.css" rel="stylesheet">
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<!-- TailwindCSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
 <style>
-  html, body, #map { height: 100%; margin: 0; padding: 0; }
-  .menu { position: absolute; top: 10px; right: 10px; z-index: 1000; background: rgba(30,30,30,0.9); color: white; padding: 1rem; border-radius: 0.5rem; max-width: 300px; }
-  .menu h2 { font-weight: bold; margin-bottom: 0.5rem; }
-  .menu label { display: block; margin-top: 0.5rem; }
+  body, html { margin:0; padding:0; height:100%; }
+  #map { width: 100%; height: 100%; }
+  .menu { position: absolute; top: 10px; right: 10px; width: 300px; max-height: 90%; background: rgba(31, 41, 55, 0.95); color:white; padding: 10px; border-radius: 8px; overflow-y:auto; z-index: 1000; }
+  .menu h2 { font-weight: bold; margin-bottom: 5px; }
+  .leaflet-popup-content-wrapper { background-color: #1f2937; color:white; }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
-
-<div class="menu">
+<div class="menu" id="menu">
   <h2>Tools</h2>
-  
-  <label>Icon size:
-    <input type="range" id="iconSize" min="20" max="80" value="40">
-  </label>
-  
-  <button id="addMarkerBtn" class="mt-2 p-2 bg-blue-600 rounded w-full">Aggiungi Marker</button>
-  <button id="clearMarkersBtn" class="mt-2 p-2 bg-red-600 rounded w-full">Rimuovi tutti i Marker</button>
-  
-  <div class="mt-4">
-    <h3 class="font-bold mb-1">Seleziona punto:</h3>
-    <div id="pointerInfo">Clicca sulla mappa per vedere info</div>
-  </div>
-  
-  <div class="mt-4">
-    <h3 class="font-bold mb-1">Formato Coordinate:</h3>
-    <select id="coordFormat" class="w-full bg-gray-800 text-white rounded p-1">
-      <option value="dd">DD (lat/lon decimale)</option>
+  <button class="w-full mb-2 bg-blue-600 hover:bg-blue-700 p-2 rounded" id="addMarkerBtn">Aggiungi Marker</button>
+  <button class="w-full mb-2 bg-green-600 hover:bg-green-700 p-2 rounded" id="measureBtn">Misura Distanza</button>
+  <button class="w-full mb-2 bg-purple-600 hover:bg-purple-700 p-2 rounded" id="addAreaBtn">Disegna Area</button>
+  <button class="w-full mb-2 bg-yellow-600 hover:bg-yellow-700 p-2 rounded" id="exportBtn">Esporta JSON</button>
+  <div class="mt-2">
+    <label>Formato Coordinate:</label>
+    <select id="coordFormat" class="w-full bg-gray-800 p-1 rounded">
+      <option value="dd">DD</option>
       <option value="dms">DMS</option>
       <option value="dm">DM</option>
       <option value="utm">UTM</option>
-      <option value="mgrs">MGRS</option>
+      <option value="mgrs" selected>MGRS</option>
     </select>
-  </div>
-
-  <div class="mt-4">
-    <h3 class="font-bold mb-1">Distanza e Direzione:</h3>
-    <div id="distanceInfo">Seleziona due punti sulla mappa</div>
   </div>
 </div>
 
 <script>
 // Inizializza mappa
-const map = L.map('map').setView([45.0, 12.0], 5);
+const map = L.map('map').setView([45.0, 12.0], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
+  attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
 // Storage
-let markers = [];
-let markerGroup = L.layerGroup().addTo(map);
-let iconSize = 40;
-let coordFormat = 'dd';
-let distancePoints = [];
+const storage = {
+  get: key => JSON.parse(localStorage.getItem(key) || '[]'),
+  set: (key,val) => localStorage.setItem(key, JSON.stringify(val))
+};
 
-// Coordinate formats
-function formatCoordinate(lat, lon) {
-  switch(coordFormat) {
-    case 'dd': return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-    case 'dms': {
-      function toDMS(deg) {
-        const d = Math.floor(Math.abs(deg));
-        const m = Math.floor((Math.abs(deg) - d)*60);
-        const s = ((Math.abs(deg) - d - m/60)*3600).toFixed(2);
-        const dir = deg >=0 ? (deg===lat?'N':'E') : (deg===lat?'S':'W');
-        return `${d}°${m}'${s}"${dir}`;
-      }
-      return `${toDMS(lat)}, ${toDMS(lon)}`;
-    }
-    case 'dm': {
-      function toDM(deg) {
-        const d = Math.floor(Math.abs(deg));
-        const m = ((Math.abs(deg) - d)*60).toFixed(4);
-        const dir = deg >=0 ? (deg===lat?'N':'E') : (deg===lat?'S':'W');
-        return `${d}°${m}'${dir}`;
-      }
-      return `${toDM(lat)}, ${toDM(lon)}`;
-    }
-    // UTM and MGRS can be added with libraries if needed
-    default: return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-  }
+let markers = storage.get('markers');
+let areas = storage.get('areas');
+let measurePoints = [];
+let tempLine = null;
+let tempArea = null;
+let coordFormat = 'mgrs';
+
+// Funzioni coordinate
+function formatDD(lat,lng){ return lat.toFixed(6)+','+lng.toFixed(6); }
+function formatDMS(lat,lng){
+  const f = d => {
+    const abs = Math.abs(d), deg=Math.floor(abs), m=Math.floor((abs-deg)*60), s=((abs-deg-m/60)*3600).toFixed(2);
+    const dir = d>=0?(deg===lat?'N':'E'):(deg===lat?'S':'W');
+    return `${deg}°${m}'${s}" ${dir}`;
+  };
+  return `${f(lat)} ${f(lng)}`;
+}
+function formatDM(lat,lng){
+  const f = d => {
+    const abs = Math.abs(d), deg=Math.floor(abs), m=((abs-deg)*60).toFixed(4);
+    const dir = d>=0?(deg===lat?'N':'E'):(deg===lat?'S':'W');
+    return `${deg}°${m}' ${dir}`;
+  };
+  return `${f(lat)} ${f(lng)}`;
+}
+function formatUTM(lat,lng){ return `UTM ${lat.toFixed(3)},${lng.toFixed(3)}`; }
+function formatMGRS(lat,lng){ return `MGRS ${lat.toFixed(3)},${lng.toFixed(3)}`; }
+function formatCoord(lat,lng,fmt){ 
+  switch(fmt){ case 'dd': return formatDD(lat,lng);
+  case 'dms': return formatDMS(lat,lng);
+  case 'dm': return formatDM(lat,lng);
+  case 'utm': return formatUTM(lat,lng);
+  case 'mgrs': return formatMGRS(lat,lng);
+  default: return formatMGRS(lat,lng);}
 }
 
-// Pulsante Aggiungi Marker
-document.getElementById('addMarkerBtn').addEventListener('click', () => {
-  map.once('click', e => {
-    const marker = L.marker(e.latlng, {
-      icon: L.divIcon({ className: 'text-2xl', html: '📍', iconSize: [iconSize, iconSize] })
-    }).addTo(markerGroup);
-    markers.push(marker);
+// Aggiorna coordinate formato
+document.getElementById('coordFormat').addEventListener('change', e=>{ coordFormat=e.target.value; });
+
+// Aggiungi marker esistente
+markers.forEach(m=>{ 
+  const mk = L.marker([m.lat,m.lng],{title:m.title}).addTo(map);
+  mk.bindPopup(`<b>${m.title}</b><br>${formatCoord(m.lat,m.lng,coordFormat)}`);
+});
+
+// Tools
+document.getElementById('addMarkerBtn').onclick = ()=>{
+  map.once('click', e=>{
+    const m = {lat:e.latlng.lat,lng:e.latlng.lng,title:'Nuovo Marker'};
+    markers.push(m);
+    storage.set('markers',markers);
+    const mk = L.marker([m.lat,m.lng],{title:m.title}).addTo(map);
+    mk.bindPopup(`<b>${m.title}</b><br>${formatCoord(m.lat,m.lng,coordFormat)}`);
   });
-});
+};
 
-// Clear markers
-document.getElementById('clearMarkersBtn').addEventListener('click', () => {
-  markerGroup.clearLayers();
-  markers = [];
-  distancePoints = [];
-  document.getElementById('distanceInfo').innerText = "Seleziona due punti sulla mappa";
-});
+document.getElementById('measureBtn').onclick = ()=>{
+  measurePoints = [];
+  if(tempLine){ map.removeLayer(tempLine); tempLine=null;}
+  alert('Clicca sulla mappa per aggiungere punti di misura. Doppio clic per completare.');
+  map.on('click', measureClick);
+};
 
-// Icon size slider
-document.getElementById('iconSize').addEventListener('input', (e) => {
-  iconSize = e.target.value;
-  markers.forEach(m => {
-    m.setIcon(L.divIcon({ className: 'text-2xl', html: '📍', iconSize: [iconSize, iconSize] }));
-  });
-});
-
-// Coordinate format select
-document.getElementById('coordFormat').addEventListener('change', (e) => {
-  coordFormat = e.target.value;
-});
-
-// Selezione punti per info
-map.on('click', e => {
-  const lat = e.latlng.lat;
-  const lng = e.latlng.lng;
-  document.getElementById('pointerInfo').innerText = `Coordinate: ${formatCoordinate(lat, lng)}`;
-  
-  distancePoints.push([lat,lng]);
-  if(distancePoints.length === 2){
-    const [p1, p2] = distancePoints;
-    const R = 6371000; // metri
-    const φ1 = p1[0]*Math.PI/180;
-    const φ2 = p2[0]*Math.PI/180;
-    const Δφ = (p2[0]-p1[0])*Math.PI/180;
-    const Δλ = (p2[1]-p1[1])*Math.PI/180;
-    const a = Math.sin(Δφ/2)*Math.sin(Δφ/2)+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)*Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R*c;
-    
-    const y = Math.sin(Δλ)*Math.cos(φ2);
-    const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-    const bearing = (Math.atan2(y,x)*180/Math.PI+360)%360;
-    
-    document.getElementById('distanceInfo').innerText = `Distanza: ${distance.toFixed(1)} m, Direzione: ${bearing.toFixed(1)}°`;
-    distancePoints = [];
+function measureClick(e){
+  measurePoints.push(e.latlng);
+  if(measurePoints.length>1){
+    if(tempLine) map.removeLayer(tempLine);
+    tempLine = L.polyline(measurePoints,{color:'red'}).addTo(map);
+    const dist = measurePoints.reduce((acc,p,i,a)=>{
+      if(i==0) return 0;
+      const R = 6371000;
+      const φ1 = a[i-1].lat*Math.PI/180;
+      const φ2 = p.lat*Math.PI/180;
+      const Δφ = (p.lat-a[i-1].lat)*Math.PI/180;
+      const Δλ = (p.lng-a[i-1].lng)*Math.PI/180;
+      const aCalc = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+      const c = 2*Math.atan2(Math.sqrt(aCalc),Math.sqrt(1-aCalc));
+      return acc+6371000*c;
+    },0);
+    tempLine.bindPopup('Distanza: '+dist.toFixed(2)+' m').openPopup();
   }
-});
+}
+map.on('dblclick', ()=>{ map.off('click',measureClick); tempLine=null; });
 
+// Aggiungi Area
+document.getElementById('addAreaBtn').onclick = ()=>{
+  let areaPoints = [];
+  if(tempArea){ map.removeLayer(tempArea); tempArea=null;}
+  alert('Clicca sulla mappa per disegnare area. Doppio clic per completare.');
+  map.on('click', e=>{
+    areaPoints.push(e.latlng);
+    if(areaPoints.length>1){
+      if(tempArea) map.removeLayer(tempArea);
+      tempArea = L.polygon(areaPoints,{color:'purple',fillOpacity:0.3}).addTo(map);
+    }
+  });
+  map.on('dblclick', ()=>{
+    map.off('click');
+    if(areaPoints.length>2){ areas.push(areaPoints); storage.set('areas',areas); }
+    tempArea=null;
+  });
+};
+
+// Export JSON
+document.getElementById('exportBtn').onclick = ()=>{
+  const data = {markers,areas};
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='tactical_export.json'; a.click();
+};
 </script>
+
 </body>
 </html>

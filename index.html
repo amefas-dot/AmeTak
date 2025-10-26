@@ -1,159 +1,715 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical Map PRO</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  html,body{height:100%;font-family:system-ui;overflow:hidden;}
-  #map{width:100%;height:100%;z-index:1;}
-  .header{position:absolute;top:0;left:0;right:0;height:50px;background:rgba(31,41,55,0.95);color:white;z-index:1001;display:flex;justify-content:space-between;align-items:center;padding:0 10px;border-bottom:1px solid #374151;backdrop-filter:blur(10px);}
-  .header-left{display:flex;align-items:center;gap:8px;}
-  .header-title{font-weight:bold;font-size:14px;}
-  .header-subtitle{font-size:10px;color:#9ca3af;}
-  .btn{padding:6px 10px;background:#374151;border:none;border-radius:4px;color:white;cursor:pointer;font-size:18px;}
-  .btn:hover{background:#4b5563;}
-  .btn:active{background:#6b7280;}
-  .info-panel{position:absolute;top:60px;left:10px;right:10px;background:rgba(31,41,55,0.98);color:white;padding:12px;border-radius:8px;z-index:1000;border:1px solid #374151;max-width:400px;backdrop-filter:blur(10px);}
-  .info-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
-  .info-label{font-size:10px;color:#9ca3af;margin-bottom:4px;}
-  select,input,textarea{width:100%;padding:6px;background:#374151;border:1px solid #4b5563;border-radius:4px;color:white;font-size:12px;}
-  .info-value{font-family:monospace;font-size:11px;color:#10b981;background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;margin-bottom:8px;word-break:break-all;}
-  .info-stats{background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;}
-  .info-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-  .info-stat-label{font-size:9px;color:#9ca3af;}
-  .info-stat-value{font-family:monospace;font-size:11px;font-weight:bold;}
-  .controls{position:absolute;bottom:20px;right:10px;display:flex;flex-direction:column;gap:8px;z-index:1000;}
-  .control-btn{width:50px;height:50px;border-radius:50%;background:#374151;border:none;color:white;font-size:24px;cursor:pointer;box-shadow:0 4px 6px rgba(0,0,0,0.5);}
-  .control-btn:hover{background:#4b5563;}
-  .control-btn:active{background:#6b7280;}
-  .gps-status{position:absolute;bottom:20px;left:10px;background:rgba(31,41,55,0.95);color:white;padding:8px 12px;border-radius:8px;font-size:11px;z-index:1000;backdrop-filter:blur(10px);}
-  .gps-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
-  .gps-dot.active{background:#10b981;}
-  .gps-dot.inactive{background:#ef4444;}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>AmeTak — Tactical Map PRO</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* Basic layout */
+    * { box-sizing: border-box; margin:0; padding:0; }
+    html,body,#map { height:100%; width:100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto; }
+    #map { z-index:1; }
+
+    /* Header */
+    .header { position:absolute; top:0; left:0; right:0; height:56px; background:rgba(17,24,39,0.94); color:#fff; display:flex; align-items:center; justify-content:space-between; padding:8px 12px; z-index:1100; border-bottom:1px solid #26303a; }
+    .brand { display:flex; gap:10px; align-items:center; }
+    .brand .title { font-weight:700; font-size:16px; }
+    .header .actions { display:flex; gap:8px; align-items:center; }
+
+    /* Info panel (left) */
+    .info-panel { position:absolute; top:64px; left:12px; width:360px; max-width:calc(100% - 24px); background:rgba(13,18,23,0.96); color:#d1d5db; padding:12px; border-radius:8px; z-index:1090; border:1px solid #30363a; }
+    .row { display:flex; gap:8px; margin-bottom:8px; }
+    .col { flex:1; }
+    select,input { width:100%; padding:6px 8px; background:#111827; color:#fff; border:1px solid #38404a; border-radius:6px; }
+
+    .coordsBox { font-family:monospace; font-size:13px; background:#0b1220; color:#34d399; padding:8px; border-radius:6px; border:1px solid #263238; word-break:break-all; }
+
+    /* Controls right bottom */
+    .controls { position:absolute; right:12px; bottom:84px; display:flex; flex-direction:column; gap:8px; z-index:1080; }
+    .cbtn { width:52px; height:52px; border-radius:50%; background:#111827; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; border:1px solid #2b333a; cursor:pointer; box-shadow: 0 6px 14px rgba(2,6,23,0.6); }
+    .cbtn.active { background:#10b981; color:#081218; }
+
+    /* Small bottom-left crosshair coordinate */
+    .crossInfo { position:absolute; left:12px; bottom:20px; background:rgba(13,18,23,0.96); color:#d1d5db; padding:8px 10px; border-radius:8px; z-index:1085; border:1px solid #263238; font-family:monospace; font-size:13px; }
+
+    /* Menu (right sliding) */
+    .menu { position:absolute; right:0; top:56px; bottom:0; width:320px; max-width:90%; background:rgba(8,12,16,0.98); color:#e5e7eb; padding:14px; transform:translateX(100%); transition:transform .25s ease; z-index:1105; border-left:1px solid #243034; overflow:auto; }
+    .menu.open { transform:translateX(0); }
+    .menu h3 { margin-bottom:8px; font-size:15px; }
+    .menu button, .menu .filelabel { display:block; width:100%; padding:8px 10px; margin-bottom:8px; background:#0b1220; color:#fff; border:1px solid #263238; border-radius:6px; text-align:left; cursor:pointer; }
+
+    /* Chat full screen */
+    .chatPanel { position:absolute; inset:56px 320px 0 0; background:rgba(0,0,0,0.6); z-index:1110; display:none; flex-direction:column; }
+    .chatPanel.open { display:flex; }
+    .chatMessages { flex:1; overflow:auto; padding:12px; }
+    .chatInputArea { display:flex; gap:8px; padding:10px; border-top:1px solid #243034; background:#071018; }
+
+    /* compass */
+    .compass { position:absolute; right:12px; top:220px; width:68px; height:68px; z-index:1085; }
+    .compass .circle { width:100%; height:100%; border-radius:50%; background:#071018; border:2px solid #29323a; display:flex; align-items:center; justify-content:center; position:relative; }
+    .compass .needle { position:absolute; width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-bottom:16px solid #ef4444; transform-origin:8px 28px; top:6px; left:50%; transform:translateX(-50%) rotate(0deg); }
+
+    /* small UI adjustments */
+    .small { font-size:12px; color:#9ca3af; }
+
+    /* Responsive: hide big info panel on small screens */
+    @media (max-width:720px) {
+      .info-panel { width:90%; left:6px; right:6px; }
+      .menu { width:100%; }
+      .chatPanel { inset:56px 0 0 0; }
+    }
+  </style>
 </head>
 <body>
-<div id="map"></div>
 
-<div class="header">
-  <div class="header-left">
-    <span style="font-size:20px;">🎯</span>
-    <div>
-      <div class="header-title">TACTICAL MAP PRO</div>
-      <div class="header-subtitle">ALPHA-1</div>
-    </div>
-  </div>
-  <div style="display:flex;gap:8px;">
-    <button class="btn" onclick="toggleLayers()">🗺️</button>
-  </div>
-</div>
+  <div id="map"></div>
 
-<div class="info-panel" id="infoPanel">
-  <div class="info-row">
-    <div>
-      <div class="info-label">Datum</div>
-      <select id="datum"><option value="wgs84">WGS 84</option></select>
+  <div class="header">
+    <div class="brand">
+      <div style="font-size:20px">🎯</div>
+      <div>
+        <div class="title">AmeTak — Tactical Map PRO</div>
+        <div class="small">ALPHA-1</div>
+      </div>
     </div>
-    <div>
-      <div class="info-label">Formato</div>
-      <select id="coordFormat" onchange="updateCoords()"><option value="dd">DD</option></select>
-    </div>
-  </div>
-  <div class="info-value" id="coordsDisplay">Attendi GPS...</div>
-  <div class="info-row">
-    <div>
-      <div class="info-label">Nord Ref</div>
-      <select id="northRef"><option value="true">Geografico</option></select>
-    </div>
-    <div>
-      <div class="info-label">Azimut</div>
-      <select id="azFormat"><option value="degrees">Gradi (360°)</option></select>
-    </div>
-  </div>
-  <div class="info-stats">
-    <div class="info-stats-grid">
-      <div><div class="info-stat-label">Az</div><div class="info-stat-value" id="azValue">--</div></div>
-      <div><div class="info-stat-label">Acc</div><div class="info-stat-value" id="accValue">--</div></div>
-      <div><div class="info-stat-label">Alt</div><div class="info-stat-value" id="altValue">--</div></div>
-      <div><div class="info-stat-label">Vel</div><div class="info-stat-value" id="velValue">--</div></div>
-    </div>
-  </div>
-</div>
 
-<div class="gps-status">
-  <span class="gps-dot inactive" id="gpsDot"></span>
-  <span id="gpsStatus">GPS: Ricerca...</span>
-</div>
+    <div class="actions">
+      <button class="cbtn" id="btnLayers" title="Mappe">🗺️</button>
+      <button class="cbtn" id="btnChat" title="Chat">💬</button>
+      <button class="cbtn" id="btnMenu" title="Menu">☰</button>
+    </div>
+  </div>
 
-<div class="controls">
-  <button class="control-btn" onclick="centerGPS()" title="GPS">🧭</button>
-</div>
+  <div class="info-panel" id="infoPanel">
+    <div class="row">
+      <div class="col">
+        <div class="small">Datum</div>
+        <select id="selDatum"><option value="wgs84">WGS84</option><option value="nad83">NAD83</option><option value="ed50">ED50</option></select>
+      </div>
+      <div class="col">
+        <div class="small">Formato</div>
+        <select id="selFormat">
+          <option value="dd">DD (decimal)</option>
+          <option value="dms">DMS</option>
+          <option value="dm">DM</option>
+          <option value="utm">UTM</option>
+          <option value="mgrs">MGRS</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="coordsBox" id="coordsBox">Attendi GPS...</div>
+
+    <div class="row">
+      <div class="col">
+        <div class="small">Nord ref.</div>
+        <select id="selNorth"><option value="true">Geografico</option><option value="magnetic">Magnetico</option><option value="grid">Rete</option></select>
+      </div>
+      <div class="col">
+        <div class="small">Azimuth</div>
+        <select id="selAzUnits"><option value="degrees">Gradi (°)</option><option value="mils">Mils</option></select>
+      </div>
+    </div>
+
+    <div style="margin-top:6px;">
+      <div class="small">Icon size</div>
+      <input id="iconSize" type="range" min="16" max="64" value="28" />
+    </div>
+
+    <div style="margin-top:8px;" class="small">Stato GPS</div>
+    <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+      <div id="gpsDot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:1px solid #1f2937"></div>
+      <div id="gpsStatus" class="small">Ricerca...</div>
+      <div style="flex:1;text-align:right;color:#9ca3af;font-size:12px"><span id="markerCount">0</span> marker • <span id="areaCount">0</span> aree</div>
+    </div>
+  </div>
+
+  <div class="crossInfo" id="crossInfo">Centrato su: -- , --</div>
+
+  <div class="controls" id="controls">
+    <div class="cbtn" id="btnCenter" title="Centra su di me">🧭</div>
+    <div class="cbtn" id="btnMarker" title="Aggiungi marker">+</div>
+    <div class="cbtn" id="btnMeasure" title="Misura">📏</div>
+    <div class="cbtn" id="btnArea" title="Area">⭕</div>
+  </div>
+
+  <div class="menu" id="menu">
+    <h3>Tools & Gestione</h3>
+
+    <div>
+      <button onclick="exportKML()">Export KML</button>
+      <button onclick="exportGPX()">Export GPX</button>
+      <button onclick="exportJSON()">Export JSON</button>
+      <label class="filelabel" style="cursor:pointer;">
+        Import JSON
+        <input type="file" accept=".json" id="inputImport" style="display:none"/>
+      </label>
+    </div>
+
+    <hr style="margin:10px 0;border-color:#17202a"/>
+
+    <h3>Markers</h3>
+    <div id="markerList"></div>
+
+    <h3>Aree</h3>
+    <div id="areaList"></div>
+
+    <div style="margin-top:12px;">
+      <button style="background:#ef4444;color:#fff" onclick="clearAll()">Cancella tutto</button>
+    </div>
+  </div>
+
+  <div class="chatPanel" id="chatPanel">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#071018;border-bottom:1px solid #263238;">
+      <div style="font-weight:700;color:#fff">Comunicazioni</div>
+      <button class="cbtn" id="closeChat">✕</button>
+    </div>
+    <div class="chatMessages" id="chatMessages"></div>
+    <div class="chatInputArea">
+      <input id="chatInput" placeholder="Scrivi..." style="flex:1;padding:8px;border-radius:6px;border:1px solid #263238;background:#0b1220;color:#fff"/>
+      <button onclick="sendChat()">Invia</button>
+    </div>
+  </div>
+
+  <div class="compass">
+    <div class="circle" id="compassCircle">
+      <div class="needle" id="compassNeedle"></div>
+    </div>
+  </div>
 
 <script>
-// --- MAPPA ---
-let map = L.map('map', {zoomControl:true}).setView([41.9028,12.4964],6);
-
-const mapLayers = {
-  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
-  satellite: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'}),
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; CARTO'}),
-  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'})
+/* ---------------------------
+   Config / Providers
+   --------------------------- */
+const TILE_PROVIDERS = {
+  street: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: '© OpenStreetMap' },
+  satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attribution: 'Esri' },
+  topo: { url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attribution: 'OpenTopoMap' },
+  dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', attribution: 'Carto' }
 };
-mapLayers.street.addTo(map);
-function changeMap(layer){Object.values(mapLayers).forEach(l=>map.removeLayer(l));mapLayers[layer].addTo(map);}
+/* If you want Google tiles you must use Google Maps JS API and an API key (billing/terms).
+   I recommend Esri/OSM for now. */
 
-// --- GPS ---
-let userMarker=null,userLocation=null,userCircle=null,gpsActive=false;
-function initGPS(){
-  if(!navigator.geolocation){simulateGPS();return;}
-  navigator.geolocation.getCurrentPosition(pos=>{
-    gpsActive=true;
-    updateUserLocation(pos);
-    navigator.geolocation.watchPosition(updateUserLocation,simulateGPS,{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
-  },simulateGPS,{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+/* ---------------------------
+   State
+   --------------------------- */
+let map, baseLayer;
+let userMarker = null, userCircle = null, userLocation = null;
+let gpsWatchId = null;
+let markers = []; // {id,lat,lng,title,desc,type,leafletMarker}
+let areas = [];   // {id,name,points,leafletPoly}
+let measurePoints = [], measureLine = null, measureMarkers = [];
+let areaPoints = [], areaPoly = null, areaMarkers = [];
+let iconSize = parseInt(document.getElementById('iconSize').value || 28);
+let markerTypes = {
+  waypoint:'📍', objective:'🎯', observation:'👁️', hazard:'⚠️', friendly:'🔵', hostile:'🔴', medic:'🏥', supply:'📦', lz:'🚁'
+};
+let heading = 0, magDecl = 0, gridConv = 0;
+
+/* ---------------------------
+   Map init
+   --------------------------- */
+function initMap() {
+  map = L.map('map', { zoomControl:false, preferCanvas:true }).setView([45.0,9.0], 6);
+  baseLayer = L.tileLayer(TILE_PROVIDERS.street.url, { maxZoom:19, attribution: TILE_PROVIDERS.street.attribution });
+  baseLayer.addTo(map);
+  L.control.zoom({ position:'bottomleft' }).addTo(map);
+
+  // crosshair info: update center coordinate whenever map moves
+  map.on('move', updateCrossInfo);
+  map.on('click', onMapClick);
+  updateCrossInfo();
+
+  loadData();
+  initUIButtons();
+  initIconSizeSlider();
+  initImportInput();
+  initDeviceOrientation();
+  initGPS(); // start GPS
+}
+initMap();
+
+/* ---------------------------
+   UI helpers
+   --------------------------- */
+function toggleMenu(){ document.getElementById('menu').classList.toggle('open'); }
+document.getElementById('btnMenu').addEventListener('click', toggleMenu);
+
+function toggleChat(){ document.getElementById('chatPanel').classList.toggle('open'); updateChatBadge(); }
+document.getElementById('btnChat').addEventListener('click', toggleChat);
+document.getElementById('closeChat').addEventListener('click', toggleChat);
+
+document.getElementById('btnLayers').addEventListener('click', () => {
+  const sel = document.getElementById('btnLayers');
+  document.getElementById('layerSelector')?.classList?.toggle?.('open');
+  // For simplicity we will implement via changeMap buttons below
+});
+
+/* small layer selection UI via buttons appended to menu (mobile safe) */
+(function addLayerButtonsToMenu(){
+  const node = document.createElement('div'); node.style.marginBottom='12px';
+  node.innerHTML = '<div class="small" style="margin-bottom:6px">Mappe</div>';
+  ['street','satellite','topo','dark'].forEach(k=>{
+    const btn = document.createElement('button');
+    btn.textContent = k.charAt(0).toUpperCase() + k.slice(1);
+    btn.onclick = ()=>changeMap(k);
+    node.appendChild(btn);
+  });
+  document.getElementById('menu').insertBefore(node, document.getElementById('menu').firstChild);
+})();
+
+function changeMap(key){
+  if(!TILE_PROVIDERS[key]) return;
+  map.removeLayer(baseLayer);
+  baseLayer = L.tileLayer(TILE_PROVIDERS[key].url, { maxZoom:19, attribution:TILE_PROVIDERS[key].attribution });
+  baseLayer.addTo(map);
 }
 
-function updateUserLocation(pos){
-  userLocation={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:pos.coords.accuracy,altitude:pos.coords.altitude,speed:pos.coords.speed,heading:pos.coords.heading};
+/* ---------------------------
+   Crosshair and Coordinates
+   --------------------------- */
+function updateCrossInfo(){
+  const c = map.getCenter();
+  document.getElementById('crossInfo').textContent = `${formatCoords(c.lat,c.lng,document.getElementById('selFormat').value)}`;
+}
+
+/* Formatters: DD, DMS, DM, UTM (approx), MGRS (approx) */
+function formatCoords(lat,lng,fmt='dd'){
+  if(fmt==='dd') return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  if(fmt==='dms') return formatDMS(lat,lng);
+  if(fmt==='dm') return formatDM(lat,lng);
+  if(fmt==='utm') return formatUTM(lat,lng);
+  if(fmt==='mgrs') return formatMGRS(lat,lng);
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+function formatDMS(lat,lng){
+  function one(d,isLat){ const dir = d>=0 ? (isLat?'N':'E') : (isLat?'S':'W'); d=Math.abs(d); const deg=Math.floor(d); const min=Math.floor((d-deg)*60); const sec=((d-deg-min/60)*3600).toFixed(2); return `${deg}°${String(min).padStart(2,'0')}'${String(sec).padStart(5,'0')}" ${dir}`; }
+  return `${one(lat,true)} ${one(lng,false)}`;
+}
+function formatDM(lat,lng){
+  function one(d,isLat){ const dir = d>=0 ? (isLat?'N':'E') : (isLat?'S':'W'); d=Math.abs(d); const deg=Math.floor(d); const min=((d-deg)*60).toFixed(4); return `${deg}° ${String(min).padStart(7,'0')}' ${dir}`; }
+  return `${one(lat,true)} ${one(lng,false)}`;
+}
+/* Simplified UTM/MGRS approximations — good for display; for production use a library (utm/mgrs) */
+function formatUTM(lat,lng){
+  const zone = Math.floor((lng+180)/6)+1;
+  const letter = 'CDEFGHJKLMNPQRSTUVWXX'[Math.floor((lat+80)/8)] || 'X';
+  return `${zone}${letter} 500000mE 5000000mN`;
+}
+function formatMGRS(lat,lng){
+  const zone = Math.floor((lng+180)/6)+1;
+  return `${zone} ${'AB'} ${String(Math.round((Math.abs(lng)%1)*10000)).padStart(4,'0')} ${String(Math.round((Math.abs(lat)%1)*10000)).padStart(4,'0')}`;
+}
+
+/* ---------------------------
+   GPS & user position
+   --------------------------- */
+function initGPS(){
+  if(!navigator.geolocation){
+    document.getElementById('gpsStatus').textContent='GPS non supportato';
+    return;
+  }
+  // quick test getCurrentPosition to trigger permission prompt
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{ document.getElementById('gpsStatus').textContent='GPS attivo'; startWatch(); },
+    (err)=>{ document.getElementById('gpsStatus').textContent='Permessi GPS negati / errore'; document.getElementById('gpsDot').style.background='#ef4444'; console.error(err); }
+  );
+}
+function startWatch(){
+  if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId = navigator.geolocation.watchPosition(onGPSUpdate, onGPSError, { enableHighAccuracy:true, maximumAge:3000, timeout:15000 });
+}
+function onGPSUpdate(pos){
+  userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, altitude: pos.coords.altitude, speed: pos.coords.speed || 0 };
+  document.getElementById('gpsDot').style.background = '#10b981';
+  document.getElementById('gpsStatus').textContent = `GPS: OK • ±${Math.round(userLocation.accuracy)}m`;
   if(!userMarker){
-    userMarker=L.marker([userLocation.lat,userLocation.lng],{icon:L.divIcon({html:'<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 15px rgba(59,130,246,0.8);"></div>',className:'',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);
-    userCircle=L.circle([userLocation.lat,userLocation.lng],{radius:userLocation.accuracy,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.1,weight:1}).addTo(map);
-    map.setView([userLocation.lat,userLocation.lng],16);
+    userMarker = L.marker([userLocation.lat,userLocation.lng], { icon: L.divIcon({ html:`<div style="width:${iconSize}px;height:${iconSize}px;background:#3b82f6;border:3px solid white;border-radius:50%;"></div>`, className:'', iconSize:[iconSize,iconSize] }) }).addTo(map);
+    userCircle = L.circle([userLocation.lat,userLocation.lng], { radius:userLocation.accuracy, color:'#3b82f6', fillOpacity:0.08 }).addTo(map);
+    map.setView([userLocation.lat,userLocation.lng], 16);
   } else {
     userMarker.setLatLng([userLocation.lat,userLocation.lng]);
     userCircle.setLatLng([userLocation.lat,userLocation.lng]);
     userCircle.setRadius(userLocation.accuracy);
   }
-  document.getElementById('coordsDisplay').textContent=`${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`;
-  document.getElementById('accValue').textContent=`±${Math.round(userLocation.accuracy)}m`;
-  document.getElementById('altValue').textContent=userLocation.altitude?Math.round(userLocation.altitude)+'m':'N/A';
-  document.getElementById('velValue').textContent=userLocation.speed?(userLocation.speed*3.6).toFixed(1)+' km/h':'0 km/h';
-  document.getElementById('gpsDot').classList.add('active');
-  document.getElementById('gpsDot').classList.remove('inactive');
-  document.getElementById('gpsStatus').textContent='GPS: Attivo';
+  updateUIpos();
+  // compute magnetic declination / grid convergence approximations
+  magDecl = -0.0001 * userLocation.lng + 0.0002 * userLocation.lat;
+  const zone = Math.floor((userLocation.lng+180)/6)+1;
+  const cm = (zone-1)*6 - 180 + 3;
+  gridConv = (userLocation.lng - cm) * Math.sin(userLocation.lat * Math.PI/180);
+}
+function onGPSError(err){
+  console.warn('GPS error',err);
+  document.getElementById('gpsStatus').textContent = 'GPS: Errore';
+  document.getElementById('gpsDot').style.background='#ef4444';
+}
+function centerOnUser(){ if(userLocation) map.setView([userLocation.lat,userLocation.lng], 16); }
+
+/* Update coordinate boxes and stats */
+function updateUIpos(){
+  if(!userLocation) return;
+  document.getElementById('coordsBox').textContent = formatCoords(userLocation.lat,userLocation.lng,document.getElementById('selFormat').value);
+  document.getElementById('accValue') && (document.getElementById('accValue').textContent = `±${Math.round(userLocation.accuracy)}m`);
+  document.getElementById('altValue') && (document.getElementById('altValue').textContent = userLocation.altitude ? `${Math.round(userLocation.altitude)}m` : 'N/A');
+  document.getElementById('velValue') && (document.getElementById('velValue').textContent = userLocation.speed ? `${(userLocation.speed*3.6).toFixed(1)} km/h` : '0 km/h');
 }
 
-function simulateGPS(){
-  const pos={coords:{latitude:41.9028,longitude:12.4964,accuracy:10,altitude:30,speed:0,heading:0}};
-  updateUserLocation(pos);
-  gpsActive=true;
-  document.getElementById('gpsStatus').textContent='GPS simulato';
+/* ---------------------------
+   Marker management
+   --------------------------- */
+function openMarkerModal(latlng){
+  // show simple prompt modal (for simplicity)
+  const title = prompt('Titolo marker:');
+  if(!title) return;
+  const desc = prompt('Descrizione (opzionale):') || '';
+  const type = prompt('Tipo (waypoint/objective/observation/hazard/friendly/hostile/medic/supply/lz)', 'waypoint') || 'waypoint';
+  saveMarker({lat:latlng.lat,lng:latlng.lng,title,description:desc,type});
+}
+function saveMarker(m){
+  const id = Date.now();
+  const icon = L.divIcon({ html:`<div style="font-size:${iconSize}px">${markerTypes[m.type]||'📍'}</div>`, className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2, iconSize] });
+  const leafletMarker = L.marker([m.lat,m.lng], { icon }).addTo(map);
+  leafletMarker.bindPopup(`<b>${m.title}</b><br>${m.description||''}<br><small>${formatCoords(m.lat,m.lng,document.getElementById('selFormat').value)}</small>`);
+  markers.push({ id, lat:m.lat, lng:m.lng, title:m.title, description:m.description, type:m.type, leafletMarker });
+  saveData();
+  rebuildLists();
+  addChatSystem(`📍 Marker "${m.title}" aggiunto`);
+}
+function removeMarkerById(id){
+  const idx = markers.findIndex(m=>m.id===id);
+  if(idx<0) return;
+  map.removeLayer(markers[idx].leafletMarker);
+  markers.splice(idx,1);
+  saveData(); rebuildLists();
+}
+function rebuildLists(){
+  const mlist = document.getElementById('markerList'); mlist.innerHTML='';
+  markers.forEach(m=>{
+    const div = document.createElement('div'); div.className='small'; div.style.padding='8px'; div.style.background='#071018'; div.style.marginBottom='6px'; div.textContent = `${m.title} • ${formatCoords(m.lat,m.lng,'dd')}`;
+    const btnGo = document.createElement('button'); btnGo.textContent='→'; btnGo.style.float='right'; btnGo.onclick=()=>map.setView([m.lat,m.lng],17);
+    const btnDel = document.createElement('button'); btnDel.textContent='✖'; btnDel.style.float='right'; btnDel.onclick=()=>{ if(confirm('Eliminare marker?')) removeMarkerById(m.id); };
+    div.appendChild(btnGo); div.appendChild(btnDel); mlist.appendChild(div);
+  });
+  document.getElementById('markerCount').textContent = markers.length;
+}
+function loadData(){
+  try{
+    const raw = localStorage.getItem('ametak_data_v1');
+    if(!raw) return;
+    const d = JSON.parse(raw);
+    if(d.markers){ d.markers.forEach(m=> saveMarker(m)); }
+    if(d.areas){ /* recreate areas if present */ d.areas.forEach(a=>{ const poly = L.polygon(a.points,{color:'yellow', fillOpacity:0.12}).addTo(map); poly.bindPopup(`<b>${a.name}</b>`); areas.push({...a,leafletPoly:poly}); }); }
+  }catch(e){ console.warn('loadData error',e); }
+  rebuildLists(); rebuildAreaList();
+}
+function saveData(){
+  try{
+    const d = { markers: markers.map(m=>({lat:m.lat,lng:m.lng,title:m.title,description:m.description,type:m.type})), areas: areas.map(a=>({name:a.name,points:a.points})) };
+    localStorage.setItem('ametak_data_v1', JSON.stringify(d));
+  }catch(e){ console.warn(e); }
 }
 
-function centerGPS(){if(userLocation)map.setView([userLocation.lat,userLocation.lng],16);}
+/* ---------------------------
+   Area tools
+   --------------------------- */
+function startAreaMode(){
+  areaPoints = []; areaMarkers.forEach(x=>map.removeLayer(x)); areaMarkers=[];
+  if(areaPoly){ map.removeLayer(areaPoly); areaPoly=null; }
+  map.on('click', onAreaClick);
+  addChatSystem('⭕ Modalità area: clicca per aggiungere vertici. Fai doppio clic per completare.');
+}
+function stopAreaMode(){
+  map.off('click', onAreaClick);
+  if(areaPoints.length>=3){
+    const poly = L.polygon(areaPoints,{color:'yellow',fillOpacity:0.12}).addTo(map);
+    poly.bindPopup('Area salvata');
+    const a = { id:Date.now(), name:`Area ${areas.length+1}`, points: areaPoints, leafletPoly:poly };
+    areas.push(a);
+    saveData(); rebuildAreaList(); addChatSystem(`🔷 Area "${a.name}" salvata`);
+  } else { addChatSystem('⚠️ Area non creata (meno di 3 punti)'); }
+  // cleanup
+  areaPoints=[]; areaMarkers.forEach(x=>map.removeLayer(x)); areaMarkers=[]; if(areaPoly){ map.removeLayer(areaPoly); areaPoly=null; }
+}
+function onAreaClick(e){
+  const p = [e.latlng.lat, e.latlng.lng];
+  areaPoints.push(p);
+  const m = L.circleMarker(p,{radius:6,color:'#84cc16'}).addTo(map);
+  areaMarkers.push(m);
+  if(areaPoly) map.removeLayer(areaPoly);
+  areaPoly = L.polygon(areaPoints,{color:'#f59e0b', fillOpacity:0.08}).addTo(map);
+}
+function rebuildAreaList(){ const el = document.getElementById('areaList'); el.innerHTML=''; areas.forEach(a=>{ const div = document.createElement('div'); div.className='small'; div.style.padding='8px'; div.style.background='#071018'; div.style.marginBottom='6px'; div.textContent = `${a.name} • ${a.points.length} vertici`; const btn = document.createElement('button'); btn.textContent='→'; btn.onclick=()=>map.fitBounds(a.leafletPoly.getBounds()); div.appendChild(btn); el.appendChild(div); }); document.getElementById('areaCount').textContent = areas.length; }
 
-// --- Layer toggle ---
-function toggleLayers(){
-  const sel=prompt('Scegli layer: street, satellite, dark, topo','street');
-  if(sel&&mapLayers[sel])changeMap(sel);
+/* ---------------------------
+   Measure tools
+   --------------------------- */
+function startMeasureMode(){
+  measurePoints=[]; measureMarkers.forEach(x=>map.removeLayer(x)); measureMarkers=[]; if(measureLine) map.removeLayer(measureLine); measureLine=null;
+  map.on('click', onMeasureClick);
+  addChatSystem('📏 Modalità misura: clicca per creare punti. Clic doppio per terminare.');
+}
+function stopMeasureMode(){
+  map.off('click', onMeasureClick);
+  if(measurePoints.length>=2){ const total = calcTotalDistance(measurePoints); addChatSystem(`📏 Distanza totale: ${formatDistance(total)}`); } else addChatSystem('⚠️ Misura terminata');
+  measurePoints=[]; measureMarkers.forEach(x=>map.removeLayer(x)); measureMarkers=[]; if(measureLine){ map.removeLayer(measureLine); measureLine=null; }
+}
+function onMeasureClick(e){
+  measurePoints.push(e.latlng);
+  const m = L.circleMarker(e.latlng,{radius:5,color:'#06b6d4'}).addTo(map);
+  measureMarkers.push(m);
+  if(measureLine) map.removeLayer(measureLine);
+  measureLine = L.polyline(measurePoints,{color:'#06b6d4',dashArray:'6,8'}).addTo(map);
+  if(measurePoints.length>=2){
+    const total = calcTotalDistance(measurePoints);
+    addChatSystem(`📏 Segmento: ${formatDistance(total)}`);
+  }
+}
+function calcTotalDistance(points){
+  let t=0;
+  for(let i=0;i<points.length-1;i++){ t += map.distance(points[i],points[i+1]); }
+  return t; // meters
+}
+function formatDistance(m){
+  if(m<1000) return `${Math.round(m)} m`;
+  return `${(m/1000).toFixed(2)} km`;
 }
 
-// --- INIT ---
-initGPS();
+/* ---------------------------
+   Export / Import
+   --------------------------- */
+function exportKML(){
+  let kml = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>AmeTak Export</name>`;
+  markers.forEach(m=> kml += `<Placemark><name>${m.title}</name><description>${m.description||''}</description><Point><coordinates>${m.lng},${m.lat},0</coordinates></Point></Placemark>`);
+  kml += `</Document></kml>`;
+  downloadBlob(kml,'application/vnd.google-earth.kml+xml',`ametak_${Date.now()}.kml`);
+}
+function exportGPX(){
+  let gpx = `<?xml version="1.0"?><gpx version="1.1" creator="AmeTak">`;
+  markers.forEach(m=> gpx += `<wpt lat="${m.lat}" lon="${m.lng}"><name>${m.title}</name><desc>${m.description||''}</desc></wpt>`);
+  gpx += `</gpx>`;
+  downloadBlob(gpx,'application/gpx+xml',`ametak_${Date.now()}.gpx`);
+}
+function exportJSON(){
+  const data = { markers: markers.map(m=>({lat:m.lat,lng:m.lng,title:m.title,description:m.description,type:m.type})), areas: areas.map(a=>({name:a.name,points:a.points})) };
+  downloadBlob(JSON.stringify(data,null,2),'application/json',`ametak_${Date.now()}.json`);
+}
+function importJSONFile(file){
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try{
+      const d = JSON.parse(ev.target.result);
+      if(d.markers) d.markers.forEach(m=> saveMarker(m));
+      if(d.areas) d.areas.forEach(a=>{ const poly=L.polygon(a.points,{color:'yellow',fillOpacity:0.12}).addTo(map); areas.push({...a,leafletPoly:poly}); });
+      addChatSystem('✅ Import completato');
+      saveData(); rebuildLists(); rebuildAreaList();
+    }catch(e){ addChatSystem('❌ Import error: '+e.message); }
+  };
+  reader.readAsText(file);
+}
+document.getElementById('inputImport').addEventListener('change', (ev)=>{ if(ev.target.files[0]) importJSONFile(ev.target.files[0]); });
+
+function downloadBlob(content,type,filename){
+  const blob = new Blob([content],{type});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------------------
+   Chat (simple local)
+   --------------------------- */
+let chatMessages = [];
+function addChatSystem(text){ chatMessages.push({text,ts:Date.now(),type:'system'}); renderChat(); }
+function sendChat(){
+  const inp = document.getElementById('chatInput'); const v=inp.value.trim(); if(!v) return;
+  chatMessages.push({text:v,ts:Date.now(),type:'user'}); inp.value=''; renderChat(); updateChatBadge();
+}
+function renderChat(){
+  const box = document.getElementById('chatMessages'); box.innerHTML='';
+  chatMessages.forEach(m=>{
+    const div = document.createElement('div'); div.className='small'; div.style.padding='8px'; div.style.marginBottom='6px'; div.style.background = m.type==='user' ? '#062a5e' : '#3a2b00'; div.textContent = m.text;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+function updateChatBadge(){
+  const badge = document.getElementById('chatBadge');
+  if(chatMessages.length>0){ badge.style.display='block'; } else { badge.style.display='none'; }
+}
+
+/* ---------------------------
+   Utility: click handler
+   --------------------------- */
+function onMapClick(e){
+  // If markermode: open modal to add marker
+  if(document.getElementById('btnMarker').classList.contains('active')){
+    openMarkerModal(e.latlng); return;
+  }
+  if(document.getElementById('btnMeasure').classList.contains('active')){
+    // measure mode uses map click handler registered separately; ignore here
+    return;
+  }
+  if(document.getElementById('btnArea').classList.contains('active')){
+    // area handled separately
+    return;
+  }
+  // otherwise show coordinates popup and options
+  const lat = e.latlng.lat, lng = e.latlng.lng;
+  L.popup()
+   .setLatLng(e.latlng)
+   .setContent(`<b>${formatCoords(lat,lng,document.getElementById('selFormat').value)}</b><br>
+    <button onclick="saveMarker({lat:${lat},lng:${lng},title:prompt('Titolo:'),description:prompt('Descrizione:'),type:'waypoint'})">Aggiungi qui</button>
+    <button onclick="copyToClipboard('${lat.toFixed(6)},${lng.toFixed(6)}')">Copia</button>
+    `)
+   .openOn(map);
+}
+function copyToClipboard(text){
+  navigator.clipboard?.writeText(text).then(()=>alert('Copiato: '+text),()=>alert('Copia fallita'));
+}
+
+/* ---------------------------
+   Simple UI wiring
+   --------------------------- */
+function initUIButtons(){
+  document.getElementById('btnCenter').addEventListener('click', centerOnUser);
+  document.getElementById('btnMarker').addEventListener('click', ()=>{
+    document.getElementById('btnMarker').classList.toggle('active');
+    if(document.getElementById('btnMarker').classList.contains('active')) addChatSystem('✚ Modalità aggiungi marker attiva: tocca sulla mappa o premi il pulsante per creare marker.');
+  });
+  document.getElementById('btnMeasure').addEventListener('click', ()=>{
+    const el=document.getElementById('btnMeasure'); el.classList.toggle('active');
+    if(el.classList.contains('active')) { startMeasureMode(); } else { stopMeasureMode(); }
+  });
+  document.getElementById('btnArea').addEventListener('click', ()=>{
+    const el=document.getElementById('btnArea'); el.classList.toggle('active');
+    if(el.classList.contains('active')) { startAreaMode(); } else { stopAreaMode(); }
+  });
+  document.getElementById('btnCenter').title='Centra su di me';
+}
+
+/* ---------------------------
+   Icon size slider
+   --------------------------- */
+function initIconSizeSlider(){
+  const s = document.getElementById('iconSize');
+  s.addEventListener('input', ()=>{ iconSize = parseInt(s.value); // update existing markers
+    markers.forEach(m=>{ if(m.leafletMarker){ const html = `<div style="font-size:${iconSize}px">${markerTypes[m.type]||'📍'}</div>`; m.leafletMarker.setIcon(L.divIcon({html, className:'', iconSize:[iconSize,iconSize], iconAnchor:[iconSize/2,iconSize]})); }});
+    if(userMarker){ userMarker.setIcon(L.divIcon({ html:`<div style="width:${iconSize}px;height:${iconSize}px;background:#3b82f6;border:3px solid white;border-radius:50%;"></div>`, className:'', iconSize:[iconSize,iconSize] })); }
+  });
+}
+
+/* ---------------------------
+   Import / UI helpers
+   --------------------------- */
+function initImportInput(){
+  const inp = document.getElementById('inputImport');
+  inp.addEventListener('change', (ev)=>{ if(ev.target.files[0]) importJSONFile(ev.target.files[0]); });
+}
+
+/* ---------------------------
+   Device orientation for compass
+   --------------------------- */
+function initDeviceOrientation(){
+  if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+    // iOS
+    DeviceOrientationEvent.requestPermission().then(state=>{
+      if(state==='granted'){ window.addEventListener('deviceorientation', handleOrientation); }
+    }).catch(()=>{ console.warn('No permission for orientation'); });
+  } else if(window.DeviceOrientationEvent) {
+    window.addEventListener('deviceorientation', handleOrientation);
+  }
+}
+function handleOrientation(e){
+  if(e.alpha==null) return;
+  heading = Math.round(e.alpha);
+  document.getElementById('compassNeedle').style.transform = `translateX(-50%) rotate(${heading}deg)`;
+  // display azimuth in info box
+  const ref = document.getElementById('selNorth').value;
+  let az = heading;
+  if(ref==='magnetic') az += magDecl;
+  if(ref==='grid') az += gridConv;
+  while(az<0) az+=360; while(az>=360) az-=360;
+  const fmt = document.getElementById('selAzUnits').value;
+  document.getElementById('compassNeedle').title = fmt==='mils' ? `${Math.round((az/360)*6400)} mils` : `${Math.round(az)}°`;
+}
+
+/* ---------------------------
+   Small utilities
+   --------------------------- */
+function addChatSystem(t){ chatMessages.push({text:t,ts:Date.now(),type:'system'}); renderChat(); }
+function renderChat(){ const el=document.getElementById('chatMessages'); el.innerHTML=''; chatMessages.forEach(m=>{ const d=document.createElement('div'); d.className='small'; d.style.padding='8px'; d.style.marginBottom='6px'; d.style.background = m.type==='user' ? '#062a5e' : '#332a00'; d.textContent = m.text; el.appendChild(d); }); el.scrollTop = el.scrollHeight; }
+let chatMessages = [];
+
+/* ---------------------------
+   Remove all
+   --------------------------- */
+function clearAll(){
+  if(!confirm('Eliminare tutti i markers e le aree?')) return;
+  markers.forEach(m=> map.removeLayer(m.leafletMarker)); markers=[]; rebuildLists();
+  areas.forEach(a=> map.removeLayer(a.leafletPoly)); areas=[]; rebuildAreaList();
+  saveData(); addChatSystem('🗑️ Dati cancellati');
+}
+
+/* ---------------------------
+   Simple helpers for UI lists
+   --------------------------- */
+function rebuildLists(){
+  const el=document.getElementById('markerList'); el.innerHTML='';
+  markers.forEach(m=>{
+    const div=document.createElement('div'); div.className='small'; div.style.padding='8px'; div.style.marginBottom='6px'; div.style.background='#071018';
+    div.innerHTML = `<b>${m.title}</b><br><small>${formatCoords(m.lat,m.lng,'dd')}</small>`;
+    const btnGo=document.createElement('button'); btnGo.textContent='→'; btnGo.style.float='right'; btnGo.onclick=()=>map.setView([m.lat,m.lng],17);
+    const btnDel=document.createElement('button'); btnDel.textContent='✖'; btnDel.style.float='right'; btnDel.onclick=()=>{ if(confirm('Eliminare marker?')) removeMarkerById(m.id); };
+    div.appendChild(btnGo); div.appendChild(btnDel); el.appendChild(div);
+  });
+  document.getElementById('markerCount').textContent = markers.length;
+}
+function rebuildAreaList(){ const el=document.getElementById('areaList'); el.innerHTML=''; areas.forEach(a=>{ const div=document.createElement('div'); div.className='small'; div.style.padding='8px'; div.style.marginBottom='6px'; div.style.background='#071018'; div.innerHTML=`<b>${a.name}</b><br><small>${a.points.length} vertici</small>`; const btn=document.createElement('button'); btn.textContent='→'; btn.onclick=()=>map.fitBounds(a.leafletPoly.getBounds()); div.appendChild(btn); el.appendChild(div); }); document.getElementById('areaCount').textContent = areas.length; }
+
+/* ---------------------------
+   Hook: allow adding markers programmatically (for popup button)
+   --------------------------- */
+window.saveMarker = function(obj){ // obj: {lat,lng,title,description,type}
+  if(!obj) return;
+  if(!obj.title) obj.title = prompt('Titolo marker:') || 'Marker';
+  saveMarker(obj);
+};
+
+/* ---------------------------
+   Setup a couple of UI bindings for import/export and copy
+   --------------------------- */
+document.getElementById('selFormat').addEventListener('change', ()=> updateCrossInfo());
+document.getElementById('selDatum').addEventListener('change', ()=> {/* placeholder for datum transform */});
+document.getElementById('selNorth').addEventListener('change', handleOrientation);
+document.getElementById('selAzUnits').addEventListener('change', handleOrientation);
+
+/* keyboard shortcuts (useful when testing on desktop) */
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='m') document.getElementById('btnMarker').click();
+  if(e.key==='c') centerOnUser();
+});
+
+/* ---------------------------
+   Expose some actions for buttons
+   --------------------------- */
+window.centerOnUser = centerOnUser;
+window.changeMap = changeMap;
+window.exportKML = exportKML;
+window.exportGPX = exportGPX;
+window.exportJSON = exportJSON;
+window.importJSONFile = importJSONFile;
+window.clearAll = clearAll;
+window.sendChat = sendChat;
+
+/* ---------------------------
+   End of file
+   --------------------------- */
 </script>
 </body>
 </html>

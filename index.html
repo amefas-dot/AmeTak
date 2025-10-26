@@ -2,188 +2,43 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tactical Map PRO</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;font-family:system-ui;overflow:hidden}
-  #map{width:100%;height:100%;z-index:1}
-
-/* --- Header --- */
-.header{
-  position:absolute;top:0;left:0;right:0;height:50px;
-  background:rgba(31,41,55,0.95);color:white;z-index:1001;
-  display:flex;justify-content:space-between;align-items:center;
-  padding:0 10px;border-bottom:1px solid #374151;backdrop-filter:blur(10px);
-}
-.header-left{display:flex;align-items:center;gap:8px}
-.header-title{font-weight:bold;font-size:14px}
-.header-subtitle{font-size:10px;color:#9ca3af}
-.btn{
-  padding:6px 10px;background:#374151;border:none;
-  border-radius:4px;color:white;cursor:pointer;font-size:18px;
-}
-.btn:hover{background:#4b5563}
-.btn:active{background:#6b7280}
-
-/* --- Info Panel --- */
-.info-panel{
-  position:absolute;top:60px;left:10px;right:10px;
-  background:rgba(31,41,55,0.98);color:white;
-  padding:12px;border-radius:8px;z-index:1000;
-  border:1px solid #374151;max-width:400px;
-  backdrop-filter:blur(10px)
-}
-.info-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-.info-label{font-size:10px;color:#9ca3af;margin-bottom:4px}
-select,input,textarea{
-  width:100%;padding:6px;background:#374151;border:1px solid #4b5563;
-  border-radius:4px;color:white;font-size:12px
-}
-.info-value{
-  font-family:monospace;font-size:11px;color:#10b981;
-  background:#111827;padding:8px;border-radius:4px;
-  border:1px solid #374151;margin-bottom:8px;word-break:break-all;
-}
-.info-stats{
-  background:#111827;padding:8px;border-radius:4px;
-  border:1px solid #374151
-}
-.info-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.info-stat-label{font-size:9px;color:#9ca3af}
-.info-stat-value{font-family:monospace;font-size:11px;font-weight:bold}
-
-/* --- Controls --- */
-.controls{
-  position:absolute;bottom:20px;right:10px;
-  display:flex;flex-direction:column;gap:8px;z-index:1000
-}
-.control-btn{
-  width:50px;height:50px;border-radius:50%;
-  background:#374151;border:none;color:white;
-  font-size:24px;cursor:pointer;box-shadow:0 4px 6px rgba(0,0,0,0.5)
-}
-.control-btn:hover{background:#4b5563}
-.control-btn:active{background:#6b7280}
-.control-btn.active{background:#10b981;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
-
-/* --- Menu --- */
-.menu{
-  position:absolute;right:0;top:50px;bottom:0;width:90%;
-  max-width:320px;background:rgba(31,41,55,0.98);color:white;
-  padding:16px;overflow-y:auto;transform:translateX(100%);
-  transition:transform 0.3s;z-index:1001;
-  border-left:1px solid #374151;backdrop-filter:blur(10px)
-}
-.menu.open{transform:translateX(0)}
-.menu-section{margin-bottom:24px}
-.menu-title{font-weight:bold;margin-bottom:12px;font-size:14px}
-.marker-item{
-  background:#374151;padding:12px;border-radius:8px;margin-bottom:8px;cursor:pointer
-}
-.marker-item:hover{background:#4b5563}
-.marker-item:active{background:#6b7280}
-
-/* --- Modal --- */
-.modal{
-  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-  background:rgba(31,41,55,0.98);color:white;
-  padding:20px;border-radius:8px;z-index:1003;
-  border:1px solid #374151;min-width:300px;max-width:90%;
-  display:none;backdrop-filter:blur(10px)
-}
-.modal.open{display:block}
-.modal-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,0.7);
-  z-index:1002;display:none
-}
-.modal-overlay.open{display:block}
-.modal-title{font-weight:bold;margin-bottom:16px;font-size:16px}
-.modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
-
-/* --- Chat --- */
-.chat{
-  position:absolute;left:0;top:50px;bottom:0;right:0;
-  background:rgba(17,24,39,0.98);z-index:1002;display:none;
-  flex-direction:column;backdrop-filter:blur(10px)
-}
-.chat.open{display:flex}
-.chat-messages{
-  flex:1;overflow-y:auto;padding:16px;
-  display:flex;flex-direction:column;gap:8px
-}
-.chat-msg{
-  padding:12px;border-radius:8px;
-  background:#374151;border:1px solid #4b5563;font-size:14px
-}
-.chat-msg.user{background:rgba(59,130,246,0.3);border-color:#3b82f6;margin-left:40px}
-.chat-msg.system{background:rgba(251,191,36,0.3);border-color:#f59e0b}
-.chat-msg-header{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px}
-.chat-input-area{padding:12px;background:#1f2937;border-top:1px solid #374151;display:flex;gap:8px}
-
-/* --- Compass --- */
-.compass{position:absolute;top:220px;right:10px;width:64px;height:64px;z-index:1000}
-.compass-circle{
-  width:100%;height:100%;border-radius:50%;
-  background:rgba(31,41,55,0.95);border:2px solid #4b5563;
-  position:relative;backdrop-filter:blur(10px)
-}
-.compass-needle{
-  position:absolute;top:6px;left:50%;width:0;height:0;margin-left:-6px;
-  border-left:6px solid transparent;border-right:6px solid transparent;
-  border-bottom:14px solid #ef4444;transform-origin:6px 26px
-}
-.compass-n{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-weight:bold;font-size:12px}
-.compass-value{position:absolute;top:68px;left:50%;transform:translateX(-50%);
-  font-size:10px;font-family:monospace;color:#fbbf24;
-  background:rgba(17,24,39,0.9);padding:3px 8px;border-radius:4px;
-  white-space:nowrap;backdrop-filter:blur(10px)
-}
-
-/* --- Loading --- */
-.loading{position:fixed;inset:0;background:rgba(17,24,39,0.95);
-  display:flex;align-items:center;justify-content:center;
-  z-index:2000;flex-direction:column;backdrop-filter:blur(10px)
-}
-.loading.hidden{display:none}
-@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg)}}
-.spin{animation:spin 2s linear infinite}
-
-/* --- GPS Status --- */
-.gps-status{
-  position:absolute;bottom:20px;left:10px;
-  background:rgba(31,41,55,0.95);color:white;
-  padding:8px 12px;border-radius:8px;font-size:11px;
-  z-index:1000;backdrop-filter:blur(10px)
-}
-.gps-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
-.gps-dot.active{background:#10b981;animation:pulse 2s infinite}
-.gps-dot.inactive{background:#ef4444}
-
-/* --- Layer Selector --- */
-.layer-selector{
-  position:absolute;top:60px;right:10px;
-  background:rgba(31,41,55,0.95);color:white;
-  padding:8px;border-radius:8px;z-index:1000;
-  backdrop-filter:blur(10px);display:none
-}
-.layer-selector.open{display:block}
-.layer-btn{
-  padding:8px 12px;margin:4px 0;width:100%;
-  background:#374151;border:none;color:white;
-  border-radius:4px;cursor:pointer;font-size:12px
-}
-.layer-btn:hover{background:#4b5563}
-.layer-btn.active{background:#10b981}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;font-family:system-ui;overflow:hidden;}
+  #map{width:100%;height:100%;z-index:1;}
+  .header{position:absolute;top:0;left:0;right:0;height:50px;background:rgba(31,41,55,0.95);color:white;z-index:1001;display:flex;justify-content:space-between;align-items:center;padding:0 10px;border-bottom:1px solid #374151;backdrop-filter:blur(10px);}
+  .header-left{display:flex;align-items:center;gap:8px;}
+  .header-title{font-weight:bold;font-size:14px;}
+  .header-subtitle{font-size:10px;color:#9ca3af;}
+  .btn{padding:6px 10px;background:#374151;border:none;border-radius:4px;color:white;cursor:pointer;font-size:18px;}
+  .btn:hover{background:#4b5563;}
+  .btn:active{background:#6b7280;}
+  .info-panel{position:absolute;top:60px;left:10px;right:10px;background:rgba(31,41,55,0.98);color:white;padding:12px;border-radius:8px;z-index:1000;border:1px solid #374151;max-width:400px;backdrop-filter:blur(10px);}
+  .info-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+  .info-label{font-size:10px;color:#9ca3af;margin-bottom:4px;}
+  select,input,textarea{width:100%;padding:6px;background:#374151;border:1px solid #4b5563;border-radius:4px;color:white;font-size:12px;}
+  .info-value{font-family:monospace;font-size:11px;color:#10b981;background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;margin-bottom:8px;word-break:break-all;}
+  .info-stats{background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;}
+  .info-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .info-stat-label{font-size:9px;color:#9ca3af;}
+  .info-stat-value{font-family:monospace;font-size:11px;font-weight:bold;}
+  .controls{position:absolute;bottom:20px;right:10px;display:flex;flex-direction:column;gap:8px;z-index:1000;}
+  .control-btn{width:50px;height:50px;border-radius:50%;background:#374151;border:none;color:white;font-size:24px;cursor:pointer;box-shadow:0 4px 6px rgba(0,0,0,0.5);}
+  .control-btn:hover{background:#4b5563;}
+  .control-btn:active{background:#6b7280;}
+  .gps-status{position:absolute;bottom:20px;left:10px;background:rgba(31,41,55,0.95);color:white;padding:8px 12px;border-radius:8px;font-size:11px;z-index:1000;backdrop-filter:blur(10px);}
+  .gps-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+  .gps-dot.active{background:#10b981;}
+  .gps-dot.inactive{background:#ef4444;}
 </style>
 </head>
 <body>
 <div id="map"></div>
 
-<!-- Header -->
 <div class="header">
   <div class="header-left">
     <span style="font-size:20px;">🎯</span>
@@ -193,153 +48,112 @@ select,input,textarea{
     </div>
   </div>
   <div style="display:flex;gap:8px;">
-    <button class="btn" onclick="toggleLayers()" title="Mappe">🗺️</button>
-    <button class="btn" onclick="toggleChat()" title="Chat">💬<span id="chatBadge" style="display:none;position:absolute;top:0;right:0;width:8px;height:8px;background:#ef4444;border-radius:50%;"></span></button>
-    <button class="btn" onclick="toggleMenu()" title="Menu">☰</button>
+    <button class="btn" onclick="toggleLayers()">🗺️</button>
   </div>
 </div>
 
-<!-- Info Panel -->
 <div class="info-panel" id="infoPanel">
   <div class="info-row">
     <div>
       <div class="info-label">Datum</div>
-      <select id="datum">
-        <option value="wgs84">WGS 84</option>
-        <option value="nad83">NAD 83</option>
-        <option value="ed50">ED 50</option>
-      </select>
+      <select id="datum"><option value="wgs84">WGS 84</option></select>
     </div>
     <div>
       <div class="info-label">Formato</div>
-      <select id="coordFormat" onchange="updateCoords()">
-        <option value="dd">DD</option>
-        <option value="dms">DMS</option>
-        <option value="dm">DM</option>
-        <option value="utm">UTM</option>
-        <option value="mgrs">MGRS</option>
-      </select>
+      <select id="coordFormat" onchange="updateCoords()"><option value="dd">DD</option></select>
     </div>
   </div>
   <div class="info-value" id="coordsDisplay">Attendi GPS...</div>
-
   <div class="info-row">
     <div>
       <div class="info-label">Nord Ref</div>
-      <select id="northRef" onchange="updateAzimut()">
-        <option value="true">Geografico</option>
-        <option value="magnetic">Magnetico</option>
-        <option value="grid">Rete</option>
-      </select>
+      <select id="northRef"><option value="true">Geografico</option></select>
     </div>
     <div>
       <div class="info-label">Azimut</div>
-      <select id="azFormat" onchange="updateAzimut()">
-        <option value="degrees">Gradi (360°)</option>
-        <option value="mils">Mils (6400)</option>
-      </select>
+      <select id="azFormat"><option value="degrees">Gradi (360°)</option></select>
     </div>
   </div>
-
   <div class="info-stats">
     <div class="info-stats-grid">
-      <div>
-        <div class="info-stat-label">Az</div>
-        <div class="info-stat-value" style="color:#fbbf24;" id="azValue">--</div>
-      </div>
-      <div>
-        <div class="info-stat-label">Acc</div>
-        <div class="info-stat-value" style="color:#10b981;" id="accValue">--</div>
-      </div>
-      <div>
-        <div class="info-stat-label">Alt</div>
-        <div class="info-stat-value" style="color:#3b82f6;" id="altValue">--</div>
-      </div>
-      <div>
-        <div class="info-stat-label">Vel</div>
-        <div class="info-stat-value" style="color:#8b5cf6;" id="velValue">--</div>
-      </div>
+      <div><div class="info-stat-label">Az</div><div class="info-stat-value" id="azValue">--</div></div>
+      <div><div class="info-stat-label">Acc</div><div class="info-stat-value" id="accValue">--</div></div>
+      <div><div class="info-stat-label">Alt</div><div class="info-stat-value" id="altValue">--</div></div>
+      <div><div class="info-stat-label">Vel</div><div class="info-stat-value" id="velValue">--</div></div>
     </div>
   </div>
 </div>
 
-<!-- Compass -->
-<div class="compass">
-  <div class="compass-circle">
-    <div class="compass-needle" id="needle"></div>
-    <div class="compass-n">N</div>
-  </div>
-  <div class="compass-value" id="compassVal">--</div>
-</div>
-
-<!-- Layer Selector -->
-<div class="layer-selector" id="layerSelector">
-  <button class="layer-btn active" onclick="changeMap('street')">🗺️ Street</button>
-  <button class="layer-btn" onclick="changeMap('satellite')">🛰️ Satellite</button>
-  <button class="layer-btn" onclick="changeMap('topo')">⛰️ Topografica</button>
-  <button class="layer-btn" onclick="changeMap('dark')">🌙 Dark</button>
-</div>
-
-<!-- GPS Status -->
 <div class="gps-status">
   <span class="gps-dot inactive" id="gpsDot"></span>
   <span id="gpsStatus">GPS: Ricerca...</span>
 </div>
 
-<!-- Controls -->
 <div class="controls">
   <button class="control-btn" onclick="centerGPS()" title="GPS">🧭</button>
-  <button class="control-btn" id="markerBtn" onclick="toggleMarkerMode()" title="Marker">+</button>
-  <button class="control-btn" id="measureBtn" onclick="toggleMeasure()" title="Misura">📏</button>
-  <button class="control-btn" id="areaBtn" onclick="toggleArea()" title="Area">⭕</button>
 </div>
 
-<!-- Menu -->
-<div class="menu" id="menu">
-  <div class="menu-section">
-    <div class="menu-title">📤 Export/Import</div>
-    <button class="btn" style="width:100%;margin-bottom:8px;font-size:14px;" onclick="exportKML()">📥 Export KML</button>
-    <button class="btn" style="width:100%;margin-bottom:8px;font-size:14px;" onclick="exportGPX()">📥 Export GPX</button>
-    <button class="btn" style="width:100%;margin-bottom:8px;font-size:14px;" onclick="exportJSON()">📥 Export JSON</button>
-    <label class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;font-size:14px;">
-      📤 Import JSON
-      <input type="file" accept=".json" onchange="importJSON(event)" style="display:none;">
-    </label>
-  </div>
+<script>
+// --- MAPPA ---
+let map = L.map('map', {zoomControl:true}).setView([41.9028,12.4964],6);
 
-  <div class="menu-section">
-    <div class="menu-title">📍 Markers (<span id="markerCount">0</span>)</div>
-    <div id="markerList" style="max-height:200px;overflow-y:auto;"></div>
-  </div>
+const mapLayers = {
+  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
+  satellite: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'}),
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'&copy; CARTO'}),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'})
+};
+mapLayers.street.addTo(map);
+function changeMap(layer){Object.values(mapLayers).forEach(l=>map.removeLayer(l));mapLayers[layer].addTo(map);}
 
-  <div class="menu-section">
-    <div class="menu-title">⭕ Aree (<span id="areaCount">0</span>)</div>
-    <div id="areaList" style="max-height:150px;overflow-y:auto;"></div>
-  </div>
+// --- GPS ---
+let userMarker=null,userLocation=null,userCircle=null,gpsActive=false;
+function initGPS(){
+  if(!navigator.geolocation){simulateGPS();return;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    gpsActive=true;
+    updateUserLocation(pos);
+    navigator.geolocation.watchPosition(updateUserLocation,simulateGPS,{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
+  },simulateGPS,{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+}
 
-  <div class="menu-section">
-    <button class="btn" style="width:100%;background:#dc2626;font-size:14px;" onclick="clearAll()">🗑️ Cancella Tutto</button>
-  </div>
-</div>
+function updateUserLocation(pos){
+  userLocation={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:pos.coords.accuracy,altitude:pos.coords.altitude,speed:pos.coords.speed,heading:pos.coords.heading};
+  if(!userMarker){
+    userMarker=L.marker([userLocation.lat,userLocation.lng],{icon:L.divIcon({html:'<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 15px rgba(59,130,246,0.8);"></div>',className:'',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);
+    userCircle=L.circle([userLocation.lat,userLocation.lng],{radius:userLocation.accuracy,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.1,weight:1}).addTo(map);
+    map.setView([userLocation.lat,userLocation.lng],16);
+  } else {
+    userMarker.setLatLng([userLocation.lat,userLocation.lng]);
+    userCircle.setLatLng([userLocation.lat,userLocation.lng]);
+    userCircle.setRadius(userLocation.accuracy);
+  }
+  document.getElementById('coordsDisplay').textContent=`${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`;
+  document.getElementById('accValue').textContent=`±${Math.round(userLocation.accuracy)}m`;
+  document.getElementById('altValue').textContent=userLocation.altitude?Math.round(userLocation.altitude)+'m':'N/A';
+  document.getElementById('velValue').textContent=userLocation.speed?(userLocation.speed*3.6).toFixed(1)+' km/h':'0 km/h';
+  document.getElementById('gpsDot').classList.add('active');
+  document.getElementById('gpsDot').classList.remove('inactive');
+  document.getElementById('gpsStatus').textContent='GPS: Attivo';
+}
 
-<!-- Chat -->
-<div class="chat" id="chat">
-  <div class="header">
-    <div class="header-left">
-      <span>💬</span>
-      <div class="header-title">Comunicazioni</div>
-    </div>
-    <button class="btn" onclick="toggleChat()">✕</button>
-  </div>
-  <div class="chat-messages" id="chatMsgs"></div>
-  <div class="chat-input-area">
-    <input type="text" id="chatInput" placeholder="Messaggio..." onkeypress="if(event.key==='Enter')sendMsg()">
-    <button class="btn" onclick="sendMsg()" style="font-size:14px;">Invia</button>
-  </div>
-</div>
+function simulateGPS(){
+  const pos={coords:{latitude:41.9028,longitude:12.4964,accuracy:10,altitude:30,speed:0,heading:0}};
+  updateUserLocation(pos);
+  gpsActive=true;
+  document.getElementById('gpsStatus').textContent='GPS simulato';
+}
 
-<!-- Marker Modal -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeMarkerModal()"></div>
-<div class="modal" id="markerModal">
-  <div class="modal-title">Nuovo Marker</div>
-  <input type="text" id="markerTitle" placeholder="Titolo" style="margin-bottom:
+function centerGPS(){if(userLocation)map.setView([userLocation.lat,userLocation.lng],16);}
+
+// --- Layer toggle ---
+function toggleLayers(){
+  const sel=prompt('Scegli layer: street, satellite, dark, topo','street');
+  if(sel&&mapLayers[sel])changeMap(sel);
+}
+
+// --- INIT ---
+initGPS();
+</script>
+</body>
+</html>

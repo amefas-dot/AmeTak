@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical System PRO Avanzato</title>
+<title>Tactical System PRO</title>
 
-<!-- Tailwind -->
+<!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com"></script>
 
 <!-- React -->
@@ -18,20 +18,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-  html, body, #root { height: 100%; margin: 0; padding: 0; }
-  .leaflet-container { height: 100%; width: 100%; }
-  .crosshair {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 24px;
-    height: 24px;
-    margin-left: -12px;
-    margin-top: -12px;
-    pointer-events: none;
-    z-index: 1000;
-    font-size: 24px;
-  }
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+.leaflet-container { height: 100%; width: 100%; }
+.crosshair {
+  position: absolute; top: 50%; left: 50%;
+  width: 24px; height: 24px; margin-left: -12px; margin-top: -12px;
+  pointer-events: none; z-index: 1000; font-size: 24px;
+}
 </style>
 </head>
 <body>
@@ -40,14 +33,13 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-function TacticalApp() {
+function App() {
+  const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [markers, setMarkers] = useState([]);
-  const [selectedMarker, setSelectedMarker] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
   const [coordFormat, setCoordFormat] = useState('DD');
-  const mapRef = useRef(null);
 
   const markerTypes = {
     waypoint: { icon: '📍', size: 30 },
@@ -55,136 +47,80 @@ function TacticalApp() {
     hazard: { icon: '⚠️', size: 30 }
   };
 
-  // Inizializza mappa
   useEffect(() => {
-    const m = L.map('map', { center: [45.4642, 9.19], zoom: 13 });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(m);
+    const m = L.map(mapRef.current, { center: [45.4642, 9.19], zoom: 13 });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(m);
     setMap(m);
-    mapRef.current = m;
   }, []);
 
-  // Traccia posizione utente
   useEffect(() => {
     if (!map) return;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
-        const { latitude, longitude } = pos.coords;
-        setUserLocation([latitude, longitude]);
-        map.setView([latitude, longitude], 16);
-        L.circle([latitude, longitude], { radius: 5, color: 'blue' }).addTo(map);
+        const loc = [pos.coords.latitude, pos.coords.longitude];
+        setUserLocation(loc);
+        map.setView(loc, 16);
+        L.circle(loc, { radius: 5, color: 'blue' }).addTo(map);
       });
     }
   }, [map]);
 
-  // Aggiungi marker cliccando sulla mappa
   useEffect(() => {
     if (!map) return;
     const handleClick = e => {
-      const m = {
-        id: Date.now(),
-        lat: e.latlng.lat,
-        lng: e.latlng.lng,
-        type: 'waypoint'
-      };
+      const m = { id: Date.now(), lat: e.latlng.lat, lng: e.latlng.lng, type: 'waypoint' };
       setMarkers(prev => [...prev, m]);
     };
     map.on('click', handleClick);
     return () => map.off('click', handleClick);
   }, [map]);
 
-  // Aggiorna marker sulla mappa
   useEffect(() => {
     if (!map) return;
-    // Rimuovo layer precedenti
-    map.eachLayer(layer => {
-      if (layer.options && layer.options.pane === 'markerPane') {
-        map.removeLayer(layer);
-      }
-    });
+    map.eachLayer(layer => { if(layer.options && layer.options.pane==='markerPane') map.removeLayer(layer) });
     markers.forEach(m => {
-      const icon = L.divIcon({
-        html: `<div style="font-size:${markerTypes[m.type].size}px">${markerTypes[m.type].icon}</div>`,
-        className: ''
-      });
-      const marker = L.marker([m.lat, m.lng], { icon }).addTo(map);
-      marker.on('click', () => setSelectedMarker(m));
+      const icon = L.divIcon({ html:`<div style="font-size:${markerTypes[m.type].size}px">${markerTypes[m.type].icon}</div>`, className:'' });
+      L.marker([m.lat, m.lng], { icon }).addTo(map).bindPopup(`Lat: ${m.lat.toFixed(6)}, Lng: ${m.lng.toFixed(6)}`);
     });
   }, [markers, map]);
 
-  // Coordinate in vari formati
   const formatCoordinates = (lat, lng, fmt) => {
     switch(fmt){
-      case 'DD':
-        return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      case 'DMS':
-        const toDMS = d => {
-          const deg = Math.floor(d);
-          const min = Math.floor((d-deg)*60);
-          const sec = ((d-deg-min/60)*3600).toFixed(2);
-          return `${deg}°${min}'${sec}"`;
-        };
+      case 'DD': return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      case 'DMS': 
+        const toDMS = d => { const deg=Math.floor(d); const min=Math.floor((d-deg)*60); const sec=((d-deg-min/60)*3600).toFixed(2); return `${deg}°${min}'${sec}"`; };
         return `${toDMS(lat)} N, ${toDMS(lng)} E`;
-      case 'DM':
-        const toDM = d => {
-          const deg = Math.floor(d);
-          const min = ((d-deg)*60).toFixed(4);
-          return `${deg}° ${min}'`;
-        };
+      case 'DM': 
+        const toDM = d => { const deg=Math.floor(d); const min=((d-deg)*60).toFixed(4); return `${deg}° ${min}'`; };
         return `${toDM(lat)} N, ${toDM(lng)} E`;
-      case 'UTM':
-        // semplice approssimazione
-        const zone = Math.floor((lng+180)/6)+1;
-        return `Zona ${zone} (${lat.toFixed(2)},${lng.toFixed(2)})`;
-      case 'MGRS':
-        return `MGRS (${lat.toFixed(2)},${lng.toFixed(2)})`;
-      default:
-        return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      default: return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     }
-  };
-
-  // Distanza e azimut
-  const calculateDistance = (lat1, lng1, lat2, lng2) => {
-    const R = 6371000;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  const calculateBearing = (lat1, lng1, lat2, lng2) => {
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δλ = (lng2 - lng1) * Math.PI / 180;
-    const y = Math.sin(Δλ) * Math.cos(φ2);
-    const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
   };
 
   return (
     <div className="h-full w-full relative">
-      {/* Menu */}
+      <div ref={mapRef} className="leaflet-container"></div>
       <div className="absolute top-2 left-2 z-50">
-        <button className="bg-gray-800 text-white p-2 rounded" onClick={() => setShowMenu(!showMenu)}>☰ Tools</button>
+        <button className="bg-gray-800 text-white p-2 rounded" onClick={()=>setShowMenu(!showMenu)}>☰ Tools</button>
         {showMenu && (
           <div className="mt-1 bg-gray-700 text-white rounded shadow p-2 space-y-2">
-            <button onClick={() => alert('Seleziona marker')} className="block w-full text-left">Aggiungi Marker</button>
-            <button onClick={() => alert('Misura distanza')} className="block w-full text-left">Misura Distanza</button>
-            <button onClick={() => alert('Esporta dati')} className="block w-full text-left">Esporta KML/GPX/JSON</button>
+            <button onClick={()=>alert('Marker selezionato')} className="block w-full text-left">Aggiungi Marker</button>
+            <button onClick={()=>alert('Misura distanza')} className="block w-full text-left">Misura Distanza</button>
+            <button onClick={()=>alert('Esporta dati')} className="block w-full text-left">Esporta KML/GPX/JSON</button>
             <select value={coordFormat} onChange={e=>setCoordFormat(e.target.value)} className="w-full mt-1 text-black">
               <option value="DD">DD</option>
               <option value="DMS">DMS</option>
               <option value="DM">DM</option>
-              <option value="UTM">UTM</option>
-              <option value="MGRS">MGRS</option>
             </select>
           </div>
         )}
       </div>
+      <div className="crosshair">🎯</div>
+    </div>
+  );
+}
 
-      {/* Mappa */}
-      <div id="map" className="leaflet-container"></div>
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>

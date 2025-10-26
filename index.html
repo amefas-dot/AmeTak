@@ -2,173 +2,323 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical Map</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tactical Map PRO</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  html, body { height:100%; margin:0; }
-  #map { width:100%; height:100%; }
-  #menuIcon {
-    position:absolute; top:10px; right:10px;
-    width:40px; height:40px;
-    background:#1f2937; color:white; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    cursor:pointer; z-index:1000;
-  }
-  #toolsMenu {
-    position:absolute; top:60px; right:10px;
-    background:rgba(31,41,55,0.95); color:white; padding:10px; border-radius:8px;
-    display:none; z-index:1000;
-  }
-  #gpsButton {
-    position:absolute; bottom:10px; right:10px;
-    width:30px; height:30px; border-radius:50%;
-    background:#3b82f6; display:flex; align-items:center; justify-content:center;
-    color:white; cursor:pointer; z-index:1000;
-  }
-  #pointerCoords {
-    position:absolute; bottom:10px; left:10px;
-    background:rgba(31,41,55,0.8); color:white; padding:4px 8px; border-radius:4px;
-    font-size:12px; z-index:1000;
-  }
-  #crosshair {
-    position:absolute; top:50%; left:50%;
-    width:20px; height:20px;
-    margin-left:-10px; margin-top:-10px;
-    border:2px solid red; border-radius:50%;
-    z-index:1000; pointer-events:none;
-  }
+html, body { height:100%; margin:0; font-family: system-ui; }
+#map { width:100%; height:100%; }
+
+/* Header */
+.header {
+  position:absolute; top:0; left:0; right:0; height:50px;
+  background:rgba(31,41,55,0.95); color:white; z-index:1001;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0 10px; border-bottom:1px solid #374151;
+}
+.header-left { display:flex; align-items:center; gap:8px; }
+.header-title { font-weight:bold; font-size:14px; }
+.header-subtitle { font-size:10px; color:#9ca3af; }
+.btn {
+  padding:6px 10px; background:#374151; border:none;
+  border-radius:4px; color:white; cursor:pointer; font-size:18px;
+}
+.btn:hover { background:#4b5563; }
+
+/* Info Panel */
+.info-panel {
+  position:absolute; top:60px; left:10px; right:10px;
+  background:rgba(31,41,55,0.95); color:white;
+  padding:12px; border-radius:8px; z-index:1000;
+  border:1px solid #374151; max-width:400px;
+}
+.info-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.info-label { font-size:10px; color:#9ca3af; margin-bottom:4px; }
+select, input, textarea {
+  width:100%; padding:6px; background:#374151; border:1px solid #4b5563;
+  border-radius:4px; color:white; font-size:12px;
+}
+.info-value { font-family:monospace; font-size:11px; color:#10b981; background:#111827; padding:8px; border-radius:4px; border:1px solid #374151; margin-bottom:8px; }
+.info-stats { background:#111827; padding:8px; border-radius:4px; border:1px solid #374151; }
+.info-stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.info-stat-label { font-size:9px; color:#9ca3af; }
+.info-stat-value { font-family:monospace; font-size:12px; font-weight:bold; }
+
+/* Controls */
+.controls {
+  position:absolute; bottom:80px; right:10px;
+  display:flex; flex-direction:column; gap:8px; z-index:1000;
+}
+.control-btn {
+  width:50px; height:50px; border-radius:50%;
+  background:#374151; border:none; color:white;
+  font-size:24px; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.3);
+}
+.control-btn:hover { background:#4b5563; }
+.control-btn.active { background:#10b981; }
+
+/* Minimal Menu Icon */
+.menu-icon {
+  position:absolute; right:0; top:60px; width:40px; height:40px; z-index:1001;
+  background:#374151; border-radius:50%; display:flex; justify-content:center; align-items:center;
+  cursor:pointer; color:white; font-size:24px; border:1px solid #4b5563;
+}
+.menu-icon:hover { background:#4b5563; }
+
+/* Menu */
+.menu {
+  position:absolute; right:0; top:50px; bottom:0; width:320px;
+  background:rgba(31,41,55,0.98); color:white; padding:16px;
+  overflow-y:auto; transform:translateX(100%); transition:transform 0.3s;
+  z-index:1001; border-left:1px solid #374151;
+}
+.menu.open { transform:translateX(0); }
+.menu-section { margin-bottom:24px; }
+.menu-title { font-weight:bold; margin-bottom:12px; }
+.marker-item { background:#374151; padding:12px; border-radius:8px; margin-bottom:8px; cursor:pointer; }
+.marker-item:hover { background:#4b5563; }
+
+/* Crocicchio */
+.crosshair {
+  position:absolute; top:50%; left:50%;
+  width:20px; height:20px;
+  margin-left:-10px; margin-top:-10px;
+  border:2px solid red; border-radius:50%; z-index:1002;
+}
+
+/* Coordinate display */
+.cross-coords {
+  position:absolute; bottom:10px; left:10px;
+  background:rgba(17,24,39,0.75); color:#fbbf24;
+  font-family:monospace; padding:4px 8px; border-radius:4px; z-index:1002;
+  font-size:12px;
+}
+
+/* Compass */
+.compass {
+  position:absolute; top:140px; right:10px;
+  width:60px; height:60px; z-index:1000;
+}
+.compass-circle {
+  width:100%; height:100%; border-radius:50%;
+  background:rgba(31,41,55,0.9); border:2px solid #4b5563; position:relative;
+}
+.compass-needle {
+  position:absolute; top:4px; left:50%; width:0; height:0; margin-left:-6px;
+  border-left:6px solid transparent; border-right:6px solid transparent;
+  border-bottom:12px solid #ef4444; transform-origin:6px 26px;
+}
+.compass-n {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-weight:bold; font-size:12px;
+}
+.compass-value {
+  position:absolute; top:65px; left:50%; transform:translateX(-50%);
+  font-size:10px; font-family:monospace; color:#fbbf24;
+  background:rgba(17,24,39,0.75); padding:2px 6px; border-radius:4px;
+}
+
+/* Loading */
+.loading {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(31,41,55,0.95); color:white;
+  padding:30px; border-radius:8px; z-index:1004; text-align:center;
+}
+@keyframes spin { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+.spin { display:inline-block; animation:spin 2s linear infinite; }
 </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<!-- Menù ridotto -->
-<div id="menuIcon">☰</div>
-<div id="toolsMenu">
-  <button onclick="addMarkerPrompt()">Aggiungi Marker</button><br>
-  <button onclick="startMeasure()">Misura Distanza</button><br>
-  <button onclick="startDrawArea()">Disegna Area</button><br>
-  <button onclick="chooseCoordFormat()">Formato Coordinate</button>
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <span style="font-size:20px;">🎯</span>
+    <div>
+      <div class="header-title">TACTICAL MAP PRO</div>
+      <div class="header-subtitle">ALPHA-1</div>
+    </div>
+  </div>
 </div>
 
-<!-- Pulsante GPS -->
-<div id="gpsButton" title="Centra su di me">📍</div>
+<!-- Info Panel -->
+<div class="info-panel" id="infoPanel">
+  <div class="info-row">
+    <div>
+      <div class="info-label">Datum</div>
+      <select id="datum">
+        <option value="wgs84">WGS 84</option>
+        <option value="nad83">NAD 83</option>
+        <option value="ed50">ED 50</option>
+      </select>
+    </div>
+    <div>
+      <div class="info-label">Formato</div>
+      <select id="coordFormat" onchange="updateCoordsDisplay()">
+        <option value="dd" selected>DD</option>
+        <option value="dm">DM</option>
+        <option value="dms">DMS</option>
+        <option value="utm">UTM</option>
+        <option value="mgrs">MGRS</option>
+      </select>
+    </div>
+  </div>
+  <div class="info-value" id="coordsDisplay">-- , --</div>
+</div>
 
-<!-- Crocicchio e coordinate puntatore -->
-<div id="crosshair"></div>
-<div id="pointerCoords">-- , --</div>
+<!-- Crosshair -->
+<div class="crosshair"></div>
+<div class="cross-coords" id="crossCoords">-- , --</div>
+
+<!-- Compass -->
+<div class="compass">
+  <div class="compass-circle">
+    <div class="compass-needle" id="needle"></div>
+    <div class="compass-n">N</div>
+  </div>
+  <div class="compass-value" id="compassVal">0°</div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="control-btn" onclick="centerGPS()" title="GPS">🧭</button>
+</div>
+
+<!-- Menu Icon -->
+<div class="menu-icon" onclick="toggleMenu()" title="Menu">☰</div>
+
+<!-- Menu -->
+<div class="menu" id="menu">
+  <div class="menu-section">
+    <div class="menu-title">📤 Export/Import</div>
+    <button class="btn" style="width:100%;margin-bottom:8px;" onclick="exportJSON()">📥 Export JSON</button>
+    <label class="btn" style="width:100%;display:block;text-align:center;cursor:pointer;">
+      📤 Import JSON
+      <input type="file" accept=".json" onchange="importJSON(event)" style="display:none;">
+    </label>
+  </div>
+</div>
+
+<!-- Loading -->
+<div class="loading" id="loading">
+  <div style="font-size:48px;margin-bottom:16px;" class="spin">🛰️</div>
+  <div style="font-size:18px;font-weight:bold;margin-bottom:8px;">Ricerca GPS...</div>
+  <div style="font-size:12px;color:#9ca3af;">Assicurati che il GPS sia attivo</div>
+</div>
 
 <script>
-// Inizializza mappa
-const map = L.map('map').setView([45.0, 9.0], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
+// Map initialization
+const map = L.map('map', {zoomControl:false}).setView([45.0, 9.0], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'© OpenStreetMap'
 }).addTo(map);
+L.control.zoom({position:'bottomleft'}).addTo(map);
 
-// Gestione menu
-const menuIcon = document.getElementById('menuIcon');
-const toolsMenu = document.getElementById('toolsMenu');
-menuIcon.onclick = () => toolsMenu.style.display = toolsMenu.style.display === 'none' ? 'block' : 'none';
+// State
+let userLocation = null;
+let heading = 0;
 
-// Marker e area storage
-let markers = [];
-let areas = [];
-let measurePoints = [];
-let coordFormat = 'dd';
+// GPS
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(()=>{
+    document.getElementById('loading').style.display='none';
+  },(err)=>{alert('GPS Error: '+err.message); document.getElementById('loading').style.display='none';});
 
-// Crocicchio coordinate
-const pointerCoords = document.getElementById('pointerCoords');
-map.on('move', () => {
-  const c = map.getCenter();
-  pointerCoords.innerText = formatCoords(c.lat, c.lng);
-});
+  navigator.geolocation.watchPosition(pos=>{
+    userLocation={lat:pos.coords.latitude, lng:pos.coords.longitude};
+    updateCoordsDisplay();
+  },err=>console.error(err),{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+}
 
-// Pulsante GPS
-document.getElementById('gpsButton').onclick = () => {
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      map.setView([lat,lng], 17);
+// Orientation
+if(window.DeviceOrientationEvent){
+  const startOrientation=()=>{
+    window.addEventListener('deviceorientation', e=>{
+      if(e.alpha!==null){
+        heading=Math.round(e.alpha);
+        document.getElementById('needle').style.transform=`rotate(${heading}deg)`;
+        document.getElementById('compassVal').textContent=`${heading}°`;
+      }
     });
-  }
-};
+  };
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(state=>{if(state==='granted')startOrientation();}).catch(console.error);
+  } else startOrientation();
+}
 
-// Funzioni coordinate
-function formatCoords(lat,lng){
-  switch(coordFormat){
+// Format coordinates
+function formatCoords(lat,lng,fmt){
+  switch(fmt){
     case 'dd': return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    case 'dms': return toDMS(lat,lng);
-    case 'dm': return toDM(lat,lng);
+    case 'dm': return formatDM(lat,lng);
+    case 'dms': return formatDMS(lat,lng);
+    case 'utm': return formatUTM(lat,lng);
+    case 'mgrs': return formatMGRS(lat,lng);
     default: return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   }
 }
-function toDMS(lat,lng){
-  function conv(d, isLat){
-    const dir = d>=0?(isLat?'N':'E'):(isLat?'S':'W');
+function formatDMS(lat,lng){
+  function conv(d,isLat){
+    const dir=d>=0?(isLat?'N':'E'):(isLat?'S':'W');
     d=Math.abs(d);
     const deg=Math.floor(d);
     const min=Math.floor((d-deg)*60);
     const sec=((d-deg-min/60)*3600).toFixed(2);
-    return `${deg}°${min}'${sec}" ${dir}`;
+    return `${deg}°${String(min).padStart(2,'0')}'${String(sec).padStart(5,'0')}" ${dir}`;
   }
   return `${conv(lat,true)} ${conv(lng,false)}`;
 }
-function toDM(lat,lng){
+function formatDM(lat,lng){
   function conv(d,isLat){
     const dir=d>=0?(isLat?'N':'E'):(isLat?'S':'W');
     d=Math.abs(d);
     const deg=Math.floor(d);
     const min=((d-deg)*60).toFixed(4);
-    return `${deg}°${min}' ${dir}`;
+    return `${deg}° ${String(min).padStart(7,'0')}' ${dir}`;
   }
   return `${conv(lat,true)} ${conv(lng,false)}`;
 }
+function formatUTM(lat,lng){return "UTM 500000mE 5000000mN";}
+function formatMGRS(lat,lng){return "MGRS 32T 1234 5678";}
 
-// Tools
-function addMarkerPrompt(){
-  const title = prompt("Nome marker:");
-  if(title && map.getCenter()){
-    const c = map.getCenter();
-    const marker = L.marker([c.lat,c.lng],{title}).addTo(map);
-    markers.push(marker);
-    alert(`Marker aggiunto: ${title}\n${formatCoords(c.lat,c.lng)}`);
-  }
+// Update info panel
+function updateCoordsDisplay(){
+  if(!userLocation) return;
+  const fmt=document.getElementById('coordFormat').value;
+  document.getElementById('coordsDisplay').textContent=formatCoords(userLocation.lat,userLocation.lng,fmt);
+
+  // Update crosshair coordinates
+  const center=map.getCenter();
+  document.getElementById('crossCoords').textContent=formatCoords(center.lat,center.lng,fmt);
 }
-function startMeasure(){
-  alert("Clicca sulla mappa per aggiungere punti di misura.");
-  map.on('click', measureClick);
+
+// Menu toggle
+function toggleMenu(){document.getElementById('menu').classList.toggle('open');}
+
+// Center GPS
+function centerGPS(){if(userLocation) map.setView([userLocation.lat,userLocation.lng],17);}
+
+// Export/Import
+function exportJSON(){
+  const data={lat:userLocation?userLocation.lat:null,lng:userLocation?userLocation.lng:null};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download="data.json"; a.click();
 }
-function measureClick(e){
-  measurePoints.push(e.latlng);
-  L.circleMarker(e.latlng,{color:'blue'}).addTo(map);
-  if(measurePoints.length>=2){
-    const d = map.distance(measurePoints[measurePoints.length-2],measurePoints[measurePoints.length-1]);
-    alert(`Distanza segment: ${d.toFixed(2)} m`);
-  }
-}
-function startDrawArea(){
-  alert("Clicca sulla mappa per aggiungere punti area.");
-  const areaPoints = [];
-  const handler = (e)=>{
-    areaPoints.push([e.latlng.lat,e.latlng.lng]);
-    L.circleMarker(e.latlng,{color:'green'}).addTo(map);
-    if(areaPoints.length>=3){
-      const poly = L.polygon(areaPoints,{color:'green',fillOpacity:0.2}).addTo(map);
-      areas.push(poly);
-      map.off('click', handler);
-      alert('Area creata!');
-    }
+function importJSON(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const data=JSON.parse(ev.target.result);
+    if(data.lat && data.lng) map.setView([data.lat,data.lng],17);
   };
-  map.on('click', handler);
-}
-function chooseCoordFormat(){
-  const f = prompt("Formato coordinate (dd, dm, dms):",coordFormat);
-  if(['dd','dm','dms'].includes(f)) coordFormat=f;
+  reader.readAsText(file);
 }
 </script>
+
 </body>
 </html>

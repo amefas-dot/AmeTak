@@ -1,194 +1,77 @@
-<!DOCTYPE html>
-<html lang="it">
+<!DOCTYPE html><html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Tactical Map PRO</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<title>Tactical Map PRO v2</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/proj4/dist/proj4.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{height:100%;font-family:system-ui;overflow:hidden;}
-#map{width:100%;height:100%;z-index:1;}
-
-/* Header */
-.header{position:absolute;top:0;left:0;right:0;height:50px;background:rgba(31,41,55,0.95);color:white;z-index:1001;display:flex;justify-content:space-between;align-items:center;padding:0 10px;border-bottom:1px solid #374151;backdrop-filter:blur(10px);}
-.header-left{display:flex;align-items:center;gap:8px;}
-.header-title{font-weight:bold;font-size:14px;}
-.header-subtitle{font-size:10px;color:#9ca3af;}
-.btn{padding:6px 10px;background:#374151;border:none;border-radius:4px;color:white;cursor:pointer;font-size:18px;}
-.btn:hover{background:#4b5563;}
-.btn:active{background:#6b7280;}
-
-/* Info Panel */
-.info-panel{position:absolute;top:60px;left:10px;right:10px;background:rgba(31,41,55,0.98);color:white;padding:12px;border-radius:8px;z-index:1000;border:1px solid #374151;max-width:400px;backdrop-filter:blur(10px);}
-.info-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
-.info-label{font-size:10px;color:#9ca3af;margin-bottom:4px;}
-select,input,textarea{width:100%;padding:6px;background:#374151;border:1px solid #4b5563;border-radius:4px;color:white;font-size:12px;}
-.info-value{font-family:monospace;font-size:11px;color:#10b981;background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;margin-bottom:8px;word-break:break-all;}
-.info-stats{background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;}
-.info-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-.info-stat-label{font-size:9px;color:#9ca3af;}
-.info-stat-value{font-family:monospace;font-size:11px;font-weight:bold;}
-
-/* Layer Selector */
-.layer-selector{position:absolute;top:60px;right:10px;background:rgba(31,41,55,0.95);color:white;padding:8px;border-radius:8px;z-index:1000;backdrop-filter:blur(10px);display:none;}
-.layer-selector.open{display:block;}
-.layer-btn{padding:8px 12px;margin:4px 0;width:100%;background:#374151;border:none;color:white;border-radius:4px;cursor:pointer;font-size:12px;}
-.layer-btn:hover{background:#4b5563;}
-.layer-btn.active{background:#10b981;}
-
-/* Mirino GPS */
-#gpsTarget{position:absolute;width:20px;height:20px;top:50%;left:50%;margin-left:-10px;margin-top:-10px;z-index:1000;pointer-events:none;}
-#gpsTarget::before,#gpsTarget::after{content:"";position:absolute;background:#3b82f6;}
-#gpsTarget::before{width:100%;height:2px;top:50%;left:0;margin-top:-1px;}
-#gpsTarget::after{width:2px;height:100%;top:0;left:50%;margin-left:-1px;}
-
-/* GPS Status */
-.gps-status{position:absolute;bottom:20px;left:10px;background:rgba(31,41,55,0.95);color:white;padding:8px 12px;border-radius:8px;font-size:11px;z-index:1000;backdrop-filter:blur(10px);}
-.gps-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
-.gps-dot.active{background:#10b981;animation:pulse 2s infinite;}
-.gps-dot.inactive{background:#ef4444;}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.7;}}
+/* --- Layout Base --- */
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; font-family:system-ui; overflow:hidden; }
+#map { width:100%; height:100%; z-index:1; }
+.header { position:absolute; top:0; left:0; right:0; height:50px; background:rgba(31,41,55,0.95); color:white; z-index:1001; display:flex; justify-content:space-between; align-items:center; padding:0 10px; border-bottom:1px solid #374151; backdrop-filter:blur(10px); }
+.header-left { display:flex; align-items:center; gap:8px; }
+.header-title { font-weight:bold; font-size:14px; }
+.header-subtitle { font-size:10px; color:#9ca3af; }
+.btn { padding:6px 10px; background:#374151; border:none; border-radius:4px; color:white; cursor:pointer; font-size:18px; }
+.btn:hover { background:#4b5563; }
+.btn:active { background:#6b7280; }
+/* --- Info Panel --- */
+.info-panel { position:absolute; top:60px; left:10px; right:10px; background:rgba(31,41,55,0.98); color:white; padding:12px; border-radius:8px; z-index:1000; border:1px solid #374151; max-width:400px; backdrop-filter:blur(10px); }
+.info-value { font-family:monospace; font-size:11px; color:#10b981; background:#111827; padding:8px; border-radius:4px; border:1px solid #374151; margin-bottom:8px; word-break:break-all; }
+/* --- Layer Selector --- */
+.layer-selector { position:absolute; top:60px; right:10px; background:rgba(31,41,55,0.95); color:white; padding:8px; border-radius:8px; z-index:1000; backdrop-filter:blur(10px); display:none; }
+.layer-selector.open { display:block; }
+.layer-btn { padding:8px 12px; margin:4px 0; width:100%; background:#374151; border:none; color:white; border-radius:4px; cursor:pointer; font-size:12px; }
+.layer-btn:hover { background:#4b5563; }
+.layer-btn.active { background:#10b981; }
+/* --- Mirino --- */
+.crosshair { position:absolute; width:32px; height:32px; margin-left:-16px; margin-top:-16px; pointer-events:none; z-index:1500; }
+.crosshair:before, .crosshair:after { content:''; position:absolute; background:red; }
+.crosshair:before { left:50%; top:0; width:2px; height:100%; transform:translateX(-50%); }
+.crosshair:after { top:50%; left:0; width:100%; height:2px; transform:translateY(-50%); }
 </style>
 </head>
 <body>
 <div id="map"></div>
-
-<!-- Header -->
 <div class="header">
   <div class="header-left">
     <span style="font-size:20px;">🎯</span>
     <div>
       <div class="header-title">TACTICAL MAP PRO</div>
-      <div class="header-subtitle">ALPHA-1</div>
+      <div class="header-subtitle">v2</div>
     </div>
   </div>
   <div style="display:flex;gap:8px;">
-    <button class="btn" onclick="toggleLayers()" title="Mappe">🗺️</button>
+    <button class="btn" onclick="toggleLayers()">🗺️</button>
   </div>
 </div>
-
-<!-- Info Panel -->
 <div class="info-panel" id="infoPanel">
-  <div class="info-row">
-    <div>
-      <div class="info-label">Formato</div>
-      <select id="coordFormat" onchange="updateCoords()">
-        <option value="dd">DD</option>
-        <option value="dms">DMS</option>
-        <option value="dm">DM</option>
-        <option value="utm">UTM</option>
-        <option value="mgrs">MGRS</option>
-      </select>
-    </div>
-  </div>
   <div class="info-value" id="coordsDisplay">Attendi GPS...</div>
-  <div class="info-stats">
-    <div class="info-stats-grid">
-      <div>
-        <div class="info-stat-label">Acc</div>
-        <div class="info-stat-value" id="accValue">--</div>
-      </div>
-      <div>
-        <div class="info-stat-label">Alt</div>
-        <div class="info-stat-value" id="altValue">--</div>
-      </div>
-      <div>
-        <div class="info-stat-label">Vel</div>
-        <div class="info-stat-value" id="velValue">--</div>
-      </div>
-    </div>
-  </div>
 </div>
-
-<!-- Layer Selector -->
 <div class="layer-selector" id="layerSelector">
-  <button class="layer-btn active" onclick="changeMap('street')">🗺️ Street</button>
+  <button class="layer-btn active" onclick="changeMap('osm')">🗺️ Street</button>
   <button class="layer-btn" onclick="changeMap('satellite')">🛰️ Satellite</button>
-  <button class="layer-btn" onclick="changeMap('topo')">⛰️ Topografica</button>
+  <button class="layer-btn" onclick="changeMap('topo')">⛰️ Topo</button>
   <button class="layer-btn" onclick="changeMap('dark')">🌙 Dark</button>
 </div>
-
-<!-- Mirino -->
-<div id="gpsTarget"></div>
-
-<!-- GPS Status -->
-<div class="gps-status">
-  <span class="gps-dot inactive" id="gpsDot"></span>
-  <span id="gpsStatus">GPS: Ricerca...</span>
-</div>
-
+<div id="crosshair" class="crosshair" style="display:none;"></div>
 <script>
-// MAP INIT
-let map = L.map('map').setView([41.9028,12.4964],6);
-let baseLayers = {
-  street:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OSM'}).addTo(map),
-  satellite:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenTopoMap'}),
-  topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenTopoMap'}),
-  dark:L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_dark/{z}/{x}/{y}{r}.png',{maxZoom:20, attribution:'© Stadia Maps'})
-};
-let currentLayer = 'street';
-function changeMap(layer){
-  if(currentLayer!==layer){
-    map.removeLayer(baseLayers[currentLayer]);
-    baseLayers[layer].addTo(map);
-    document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));
-    event.target.classList.add('active');
-    currentLayer = layer;
-    document.getElementById('layerSelector').classList.remove('open');
-  }
-}
+let map, userMarker=null, userLocation=null;
+let crosshair = document.getElementById('crosshair');
+let currentLayer;
+let layers = {};// --- Map Init --- map = L.map('map',{zoomControl:true}).setView([41.9028,12.4964],6); layers['osm'] = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map); layers['satellite'] = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}); layers['topo'] = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17}); layers['dark'] = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',{maxZoom:20}); currentLayer = 'osm';
+
+function changeMap(layer){ if(currentLayer!==layer){ map.removeLayer(layers[currentLayer]); map.addLayer(layers[layer]); currentLayer = layer; document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active')); event.target.classList.add('active'); document.getElementById('layerSelector').classList.remove('open'); } }
+
 function toggleLayers(){ document.getElementById('layerSelector').classList.toggle('open'); }
 
-// GPS
-let gpsActive = false;
-let userLocation = null;
+// --- GPS --- if(navigator.geolocation){ navigator.geolocation.watchPosition(pos=>{ userLocation = pos.coords; let latlng = [userLocation.latitude,userLocation.longitude]; if(!userMarker){ userMarker = L.marker(latlng).addTo(map); }else{ userMarker.setLatLng(latlng); } document.getElementById('coordsDisplay').textContent = Lat: ${userLocation.latitude.toFixed(6)} | Lng: ${userLocation.longitude.toFixed(6)}; },err=>{console.error('GPS error',err);},{enableHighAccuracy:true,maximumAge:1000,timeout:10000}); }
 
-function toDMS(lat,lng){
-  function dms(v){let deg=Math.floor(v);let min=Math.floor((v-deg)*60);let sec=((v-deg)*60-min)*60;return deg+'°'+min+"'"+sec.toFixed(2)+'"';}
-  return dms(lat)+', '+dms(lng);
-}
-function toDM(lat,lng){
-  function dm(v){let deg=Math.floor(v);let min=(v-deg)*60;return deg+'°'+min.toFixed(4)+"'";}
-  return dm(lat)+', '+dm(lng);
-}
-function toUTM(lat,lng){
-  let utm=proj4('EPSG:4326','EPSG:32633',[lng,lat]); // default zone 33N
-  return utm[0].toFixed(2)+', '+utm[1].toFixed(2);
-}
-function toMGRS(lat,lng){
-  return proj4('EPSG:4326','EPSG:3857',[lng,lat]).map(c=>Math.round(c)).join(','); // semplice approssimazione
-}
-function updateCoords(){
-  if(!userLocation) return;
-  const f=document.getElementById('coordFormat').value;
-  let text='';
-  if(f==='dd') text=userLocation.lat.toFixed(6)+', '+userLocation.lng.toFixed(6);
-  else if(f==='dms') text=toDMS(userLocation.lat,userLocation.lng);
-  else if(f==='dm') text=toDM(userLocation.lat,userLocation.lng);
-  else if(f==='utm') text=toUTM(userLocation.lat,userLocation.lng);
-  else if(f==='mgrs') text=toMGRS(userLocation.lat,userLocation.lng);
-  document.getElementById('coordsDisplay').textContent=text;
-}
+// --- Crosshair / Mirino --- map.on('click', e=>{ crosshair.style.display='block'; let point = map.latLngToContainerPoint(e.latlng); crosshair.style.left = point.x+'px'; crosshair.style.top = point.y+'px'; alert(Mirino a Lat:${e.latlng.lat.toFixed(6)} Lng:${e.latlng.lng.toFixed(6)}); });
 
-// GPS INIT
-if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(pos=>{ gpsActive=true; updateUserLocation(pos); }, err=>{alert('GPS non attivo');});
-  navigator.geolocation.watchPosition(updateUserLocation, err=>console.error(err), { enableHighAccuracy:true, timeout:15000, maximumAge:5000 });
-} else { alert('GPS non supportato'); }
+// --- Nascondi layer menu su zoom / move --- map.on('zoomstart move',()=>{ document.getElementById('layerSelector').classList.remove('open'); }); </script>
 
-function updateUserLocation(pos){
-  userLocation={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:pos.coords.accuracy,alt:pos.coords.altitude,speed:pos.coords.speed};
-  map.setView([userLocation.lat,userLocation.lng]);
-  document.getElementById('gpsDot').classList.add('active'); document.getElementById('gpsDot').classList.remove('inactive');
-  document.getElementById('gpsStatus').textContent='GPS: Attivo';
-  updateCoords();
-  document.getElementById('accValue').textContent='±'+Math.round(userLocation.acc)+'m';
-  document.getElementById('altValue').textContent=userLocation.alt?Math.round(userLocation.alt)+'m':'N/A';
-  document.getElementById('velValue').textContent=userLocation.speed?(userLocation.speed*3.6).toFixed(1)+' km/h':'0 km/h';
-}
-</script>
 </body>
 </html>

@@ -7,63 +7,103 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html, body { height:100%; font-family:system-ui; overflow:hidden; }
-  #map { width:100%; height:100%; z-index:1; }
+/* RESET E BASE */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;font-family:system-ui;overflow:hidden}
+#map{width:100%;height:100%;z-index:1}
 
-  /* Header */
-  .header { position:absolute; top:0; left:0; right:0; height:50px;
-    background:rgba(31,41,55,0.95); color:white; z-index:1001;
-    display:flex; justify-content:space-between; align-items:center;
-    padding:0 10px; border-bottom:1px solid #374151; backdrop-filter:blur(10px);
-  }
-  .header-left { display:flex; align-items:center; gap:8px; }
-  .header-title { font-weight:bold; font-size:14px; }
-  .header-subtitle { font-size:10px; color:#9ca3af; }
-  .btn { padding:6px 10px; background:#374151; border:none; border-radius:4px; color:white; cursor:pointer; font-size:18px; }
-  .btn:hover { background:#4b5563; }
-  .btn:active { background:#6b7280; }
+/* HEADER */
+.header{position:absolute;top:0;left:0;right:0;height:50px;background:rgba(31,41,55,0.95);color:white;z-index:1001;display:flex;justify-content:space-between;align-items:center;padding:0 10px;border-bottom:1px solid #374151;backdrop-filter:blur(10px)}
+.header-left{display:flex;align-items:center;gap:8px}
+.header-title{font-weight:bold;font-size:14px}
+.header-subtitle{font-size:10px;color:#9ca3af}
+.btn{padding:6px 10px;background:#374151;border:none;border-radius:4px;color:white;cursor:pointer;font-size:18px}
+.btn:hover{background:#4b5563}
+.btn:active{background:#6b7280}
 
-  /* Layer Selector */
-  .layer-selector { position:absolute; top:60px; right:10px; background:rgba(31,41,55,0.95); color:white;
-    padding:8px; border-radius:8px; z-index:1000; backdrop-filter:blur(10px); display:none;
-  }
-  .layer-selector.open { display:block; }
-  .layer-btn { padding:8px 12px; margin:4px 0; width:100%; background:#374151; border:none; color:white; border-radius:4px; cursor:pointer; font-size:12px; }
-  .layer-btn:hover { background:#4b5563; }
-  .layer-btn.active { background:#10b981; }
+/* INFO PANEL */
+.info-panel{position:absolute;top:60px;left:10px;right:10px;background:rgba(31,41,55,0.98);color:white;padding:12px;border-radius:8px;z-index:1000;border:1px solid #374151;max-width:400px;backdrop-filter:blur(10px)}
+.info-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.info-label{font-size:10px;color:#9ca3af;margin-bottom:4px}
+select,input,textarea{width:100%;padding:6px;background:#374151;border:1px solid #4b5563;border-radius:4px;color:white;font-size:12px}
+.info-value{font-family:monospace;font-size:11px;color:#10b981;background:#111827;padding:8px;border-radius:4px;border:1px solid #374151;margin-bottom:8px;word-break:break-all}
+.info-stats{background:#111827;padding:8px;border-radius:4px;border:1px solid #374151}
+.info-stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.info-stat-label{font-size:9px;color:#9ca3af}
+.info-stat-value{font-family:monospace;font-size:11px;font-weight:bold}
 
-  /* GPS Status */
-  .gps-status { position:absolute; bottom:20px; left:10px; background:rgba(31,41,55,0.95); color:white;
-    padding:8px 12px; border-radius:8px; font-size:11px; z-index:1000; backdrop-filter:blur(10px);
-  }
-  .gps-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
-  .gps-dot.active { background:#10b981; }
-  .gps-dot.inactive { background:#ef4444; }
+/* CONTROLS */
+.controls{position:absolute;bottom:20px;right:10px;display:flex;flex-direction:column;gap:8px;z-index:1000}
+.control-btn{width:50px;height:50px;border-radius:50%;background:#374151;border:none;color:white;font-size:24px;cursor:pointer;box-shadow:0 4px 6px rgba(0,0,0,0.5)}
+.control-btn:hover{background:#4b5563}
+.control-btn:active{background:#6b7280}
+.control-btn.active{background:#10b981;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}
 
-  /* Mirino */
-  .crosshair {
-    position:absolute;
-    width:30px; height:30px;
-    top:50%; left:50%;
-    margin-left:-15px; margin-top:-15px;
-    pointer-events:none;
-    z-index:1000;
-  }
-  .crosshair:before, .crosshair:after {
-    content:'';
-    position:absolute;
-    background:#ef4444;
-  }
-  .crosshair:before { left:50%; top:0; width:2px; height:100%; margin-left:-1px; }
-  .crosshair:after { top:50%; left:0; height:2px; width:100%; margin-top:-1px; }
+/* MENU */
+.menu{position:absolute;right:0;top:50px;bottom:0;width:90%;max-width:320px;background:rgba(31,41,55,0.98);color:white;padding:16px;overflow-y:auto;transform:translateX(100%);transition:transform 0.3s;z-index:1001;border-left:1px solid #374151;backdrop-filter:blur(10px)}
+.menu.open{transform:translateX(0)}
+.menu-section{margin-bottom:24px}
+.menu-title{font-weight:bold;margin-bottom:12px;font-size:14px}
+.marker-item{background:#374151;padding:12px;border-radius:8px;margin-bottom:8px;cursor:pointer}
+.marker-item:hover{background:#4b5563}
+.marker-item:active{background:#6b7280}
 
+/* MODAL */
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(31,41,55,0.98);color:white;padding:20px;border-radius:8px;z-index:1003;border:1px solid #374151;min-width:300px;max-width:90%;display:none;backdrop-filter:blur(10px)}
+.modal.open{display:block}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1002;display:none}
+.modal-overlay.open{display:block}
+.modal-title{font-weight:bold;margin-bottom:16px;font-size:16px}
+.modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+/* CHAT */
+.chat{position:absolute;left:0;top:50px;bottom:0;right:0;background:rgba(17,24,39,0.98);z-index:1002;display:none;flex-direction:column;backdrop-filter:blur(10px)}
+.chat.open{display:flex}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{padding:12px;border-radius:8px;background:#374151;border:1px solid #4b5563;font-size:14px}
+.chat-msg.user{background:rgba(59,130,246,0.3);border-color:#3b82f6;margin-left:40px}
+.chat-msg.system{background:rgba(251,191,36,0.3);border-color:#f59e0b}
+.chat-msg-header{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px}
+.chat-input-area{padding:12px;background:#1f2937;border-top:1px solid #374151;display:flex;gap:8px}
+
+/* COMPASS */
+.compass{position:absolute;top:220px;right:10px;width:64px;height:64px;z-index:1000}
+.compass-circle{width:100%;height:100%;border-radius:50%;background:rgba(31,41,55,0.95);border:2px solid #4b5563;position:relative;backdrop-filter:blur(10px)}
+.compass-needle{position:absolute;top:6px;left:50%;width:0;height:0;margin-left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:14px solid #ef4444;transform-origin:6px 26px}
+.compass-n{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-weight:bold;font-size:12px}
+.compass-value{position:absolute;top:68px;left:50%;transform:translateX(-50%);font-size:10px;font-family:monospace;color:#fbbf24;background:rgba(17,24,39,0.9);padding:3px 8px;border-radius:4px;white-space:nowrap;backdrop-filter:blur(10px)}
+
+/* LOADING */
+.loading{position:fixed;inset:0;background:rgba(17,24,39,0.95);display:flex;align-items:center;justify-content:center;z-index:2000;flex-direction:column;backdrop-filter:blur(10px)}
+.loading.hidden{display:none}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg)}}
+.spin{animation:spin 2s linear infinite}
+
+/* GPS STATUS */
+.gps-status{position:absolute;bottom:20px;left:10px;background:rgba(31,41,55,0.95);color:white;padding:8px 12px;border-radius:8px;font-size:11px;z-index:1000;backdrop-filter:blur(10px)}
+.gps-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.gps-dot.active{background:#10b981;animation:pulse 2s infinite}
+.gps-dot.inactive{background:#ef4444}
+
+/* LAYER SELECTOR */
+.layer-selector{position:absolute;top:60px;right:10px;background:rgba(31,41,55,0.95);color:white;padding:8px;border-radius:8px;z-index:1000;backdrop-filter:blur(10px);display:none}
+.layer-selector.open{display:block}
+.layer-btn{padding:8px 12px;margin:4px 0;width:100%;background:#374151;border:none;color:white;border-radius:4px;cursor:pointer;font-size:12px}
+.layer-btn:hover{background:#4b5563}
+.layer-btn.active{background:#10b981}
+
+/* MIRINO */
+.crosshair{position:absolute;width:20px;height:20px;top:50%;left:50%;margin-left:-10px;margin-top:-10px;z-index:1000;pointer-events:none}
+.crosshair:before,.crosshair:after{content:"";position:absolute;background:red}
+.crosshair:before{left:50%;top:0;width:2px;height:100%;margin-left:-1px}
+.crosshair:after{top:50%;left:0;width:100%;height:2px;margin-top:-1px}
 </style>
 </head>
 <body>
+
 <div id="map"></div>
 
-<!-- Header -->
 <div class="header">
   <div class="header-left">
     <span style="font-size:20px;">🎯</span>
@@ -74,109 +114,129 @@
   </div>
   <div style="display:flex;gap:8px;">
     <button class="btn" onclick="toggleLayers()" title="Mappe">🗺️</button>
+    <button class="btn" onclick="toggleChat()" title="Chat">💬</button>
+    <button class="btn" onclick="toggleMenu()" title="Menu">☰</button>
   </div>
 </div>
 
-<!-- Layer Selector -->
-<div class="layer-selector" id="layerSelector">
-  <button class="layer-btn active" onclick="changeMap('street', this)">🗺️ Street</button>
-  <button class="layer-btn" onclick="changeMap('satellite', this)">🛰️ Satellite</button>
-  <button class="layer-btn" onclick="changeMap('topo', this)">⛰️ Topografica</button>
-  <button class="layer-btn" onclick="changeMap('dark', this)">🌙 Dark</button>
+<div class="info-panel" id="infoPanel">
+  <div class="info-row">
+    <div>
+      <div class="info-label">Datum</div>
+      <select id="datum">
+        <option value="wgs84">WGS 84</option>
+        <option value="nad83">NAD 83</option>
+        <option value="ed50">ED 50</option>
+      </select>
+    </div>
+    <div>
+      <div class="info-label">Formato</div>
+      <select id="coordFormat" onchange="updateCoords()">
+        <option value="dd">DD</option>
+        <option value="dms">DMS</option>
+        <option value="dm">DM</option>
+        <option value="utm">UTM</option>
+        <option value="mgrs">MGRS</option>
+      </select>
+    </div>
+  </div>
+  <div class="info-value" id="coordsDisplay">Attendi GPS...</div>
 </div>
 
-<!-- GPS Status -->
+<div class="crosshair"></div>
+
+<div class="compass">
+  <div class="compass-circle">
+    <div class="compass-needle" id="needle"></div>
+    <div class="compass-n">N</div>
+  </div>
+  <div class="compass-value" id="compassVal">--</div>
+</div>
+
+<div class="layer-selector" id="layerSelector">
+  <button class="layer-btn active" onclick="changeMap('street')">🗺️ Street</button>
+  <button class="layer-btn" onclick="changeMap('satellite')">🛰️ Satellite</button>
+  <button class="layer-btn" onclick="changeMap('topo')">⛰️ Topografica</button>
+  <button class="layer-btn" onclick="changeMap('dark')">🌙 Dark</button>
+</div>
+
 <div class="gps-status">
   <span class="gps-dot inactive" id="gpsDot"></span>
   <span id="gpsStatus">GPS: Ricerca...</span>
 </div>
 
-<!-- Mirino -->
-<div class="crosshair"></div>
+<div class="controls">
+  <button class="control-btn" onclick="centerGPS()" title="GPS">🧭</button>
+</div>
+
+<div class="menu" id="menu"></div>
+
+<div class="chat" id="chat">
+  <div class="header">
+    <div class="header-left">
+      <span>💬</span>
+      <div class="header-title">Comunicazioni</div>
+    </div>
+    <button class="btn" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chatMsgs"></div>
+  <div class="chat-input-area">
+    <input type="text" id="chatInput" placeholder="Messaggio..." onkeypress="if(event.key==='Enter')sendMsg()">
+    <button class="btn" onclick="sendMsg()" style="font-size:14px;">Invia</button>
+  </div>
+</div>
+
+<div class="loading" id="loading">
+  <div style="font-size:64px;margin-bottom:16px;" class="spin">🛰️</div>
+  <div style="font-size:20px;font-weight:bold;margin-bottom:8px;color:white;">Inizializzazione GPS...</div>
+  <div style="font-size:14px;color:#9ca3af;">Attendi connessione satelliti</div>
+</div>
 
 <script>
-let map;
-let tileLayer;
-let gpsActive = false;
+// ==== MAPPA E LAYER ====
+let map = L.map('map', {zoomControl:false}).setView([41.9028, 12.4964], 6);
+let layers = {
+  street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
+  satellite: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'}),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'}),
+  dark: L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_dark/{z}/{x}/{y}{r}.png',{maxZoom:20,attribution:'© Stadia Maps'})
+};
+layers.street.addTo(map);
+let userMarker=null, userCircle=null;
 
-// Inizializza mappa
-function initMap() {
-  map = L.map('map', { zoomControl:true, attributionControl:true }).setView([41.9028,12.4964],6);
-
-  tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19,
-    attribution:'© OpenStreetMap'
-  }).addTo(map);
+// ==== GPS ====
+function initGPS(){
+  if(!navigator.geolocation){alert('GPS non supportato'); return;}
+  navigator.geolocation.watchPosition(updateUserLocation,err=>console.error(err),{enableHighAccuracy:true,maximumAge:5000});
 }
-
-// Cambio layer
-function changeMap(type, btn) {
-  document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-
-  if(tileLayer) map.removeLayer(tileLayer);
-
-  switch(type) {
-    case 'street':
-      tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OSM'}).addTo(map);
-      break;
-    case 'satellite':
-      tileLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{
-        maxZoom:20,
-        subdomains:['mt0','mt1','mt2','mt3']
-      }).addTo(map);
-      break;
-    case 'topo':
-      tileLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17, attribution:'© OpenTopoMap'}).addTo(map);
-      break;
-    case 'dark':
-      tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19, attribution:'© Carto'}).addTo(map);
-      break;
+function updateUserLocation(pos){
+  const lat=pos.coords.latitude,lng=pos.coords.longitude;
+  if(!userMarker){
+    userMarker=L.marker([lat,lng],{icon:L.divIcon({html:'<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 15px rgba(59,130,246,0.8);"></div>',className:'',iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);
+    userCircle=L.circle([lat,lng],{radius:pos.coords.accuracy,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.1,weight:1}).addTo(map);
+    map.setView([lat,lng],16);
+  } else {
+    userMarker.setLatLng([lat,lng]);
+    userCircle.setLatLng([lat,lng]).setRadius(pos.coords.accuracy);
   }
-
-  // Chiudi layer selector quando selezioni
-  document.getElementById('layerSelector').classList.remove('open');
+  document.getElementById('coordsDisplay').textContent=`Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+  document.getElementById('gpsDot').classList.add('active'); document.getElementById('gpsDot').classList.remove('inactive');
+  document.getElementById('gpsStatus').textContent='GPS: Attivo';
 }
+function centerGPS(){if(userMarker) map.setView(userMarker.getLatLng(),16)}
 
-// Toggle layer selector
-function toggleLayers() {
-  document.getElementById('layerSelector').classList.toggle('open');
-}
+// ==== LAYER SELECTOR ====
+function toggleLayers(){const sel=document.getElementById('layerSelector');sel.classList.toggle('open');document.getElementById('menu').classList.remove('open')}
+function changeMap(name){Object.keys(layers).forEach(l=>map.removeLayer(layers[l]));layers[name].addTo(map);document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));document.querySelector(`.layer-btn:contains(${name})`)?.classList.add('active');document.getElementById('layerSelector').classList.remove('open');}
 
-// Inizializza GPS
-function initGPS() {
-  if(!navigator.geolocation) {
-    alert("❌ GPS non supportato");
-    return;
-  }
+// ==== MENU ====
+function toggleMenu(){document.getElementById('menu').classList.toggle('open');document.getElementById('layerSelector').classList.remove('open')}
+function toggleChat(){document.getElementById('chat').classList.toggle('open');document.getElementById('layerSelector').classList.remove('open')}
 
-  navigator.geolocation.watchPosition(
-    (pos)=>{
-      gpsActive = true;
-      document.getElementById('gpsDot').classList.add('active');
-      document.getElementById('gpsDot').classList.remove('inactive');
-      document.getElementById('gpsStatus').textContent = "GPS: Attivo";
-
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      // Centra mappa
-      map.setView([lat,lng], map.getZoom());
-    },
-    (err)=>{
-      gpsActive = false;
-      document.getElementById('gpsDot').classList.remove('active');
-      document.getElementById('gpsDot').classList.add('inactive');
-      document.getElementById('gpsStatus').textContent = "GPS: Non rilevato";
-      console.error(err);
-    },
-    { enableHighAccuracy:true, timeout:20000, maximumAge:0 }
-  );
-}
-
-initMap();
-initGPS();
-
-</script>
-</body>
-</html>
+// ==== CHAT ====
+let messages=[];
+function sendMsg(){
+  const txt=document.getElementById('chatInput').value.trim();if(!txt) return;
+  messages.push({user:'User',text:txt});
+  const div=document.createElement('div');div.className='chat-msg user';div.textContent=txt;
+  document.getElementById('

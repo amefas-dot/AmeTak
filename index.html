@@ -2,46 +2,40 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tactical Map PRO</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-html, body {margin:0; padding:0; height:100%; font-family:system-ui; overflow:hidden;}
-#map {width:100%; height:100%;}
-.header {position:absolute; top:0; left:0; right:0; height:50px; background:rgba(31,41,55,0.95); color:white; display:flex; justify-content:space-between; align-items:center; padding:0 10px; z-index:1001; border-bottom:1px solid #374151;}
-.header-title {font-weight:bold; font-size:14px;}
-.header-subtitle {font-size:10px; color:#9ca3af;}
-.btn {padding:6px 10px; background:#374151; border:none; border-radius:4px; color:white; cursor:pointer; font-size:18px;}
-.btn:hover {background:#4b5563;}
-.btn:active {background:#6b7280;}
-.info-panel {position:absolute; top:60px; left:10px; right:10px; background:rgba(31,41,55,0.98); color:white; padding:12px; border-radius:8px; z-index:1000; border:1px solid #374151; max-width:400px; backdrop-filter:blur(10px);}
-.info-label {font-size:10px; color:#9ca3af; margin-bottom:4px;}
-select, input, textarea {width:100%; padding:6px; background:#374151; border:1px solid #4b5563; border-radius:4px; color:white; font-size:12px;}
-.info-value {font-family:monospace; font-size:11px; color:#10b981; background:#111827; padding:8px; border-radius:4px; border:1px solid #374151; word-break:break-all; margin-bottom:8px;}
-.layer-selector {position:absolute; top:60px; right:10px; background:rgba(31,41,55,0.95); color:white; padding:8px; border-radius:8px; z-index:1000; backdrop-filter:blur(10px); display:none;}
-.layer-btn {padding:8px 12px; margin:4px 0; width:100%; background:#374151; border:none; color:white; border-radius:4px; cursor:pointer; font-size:12px;}
-.layer-btn:hover {background:#4b5563;}
-.layer-btn.active {background:#10b981;}
-.controls {position:absolute; bottom:20px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:1000;}
-.control-btn {width:50px; height:50px; border-radius:50%; background:#374151; border:none; color:white; font-size:24px; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.5);}
-.control-btn:hover {background:#4b5563;}
-.control-btn:active {background:#6b7280;}
-.control-btn.active {background:#10b981; animation:pulse 2s infinite;}
-@keyframes pulse {0%,100%{opacity:1;}50%{opacity:0.7;}}
-.modal {position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(31,41,55,0.98); color:white; padding:20px; border-radius:8px; z-index:1003; border:1px solid #374151; min-width:300px; max-width:90%; display:none; backdrop-filter:blur(10px);}
-.modal.open {display:block;}
-.modal-overlay {position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1002; display:none;}
-.modal-overlay.open {display:block;}
-.modal-title {font-weight:bold; margin-bottom:16px; font-size:16px;}
-.modal-buttons {display:flex; gap:8px; justify-content:flex-end; margin-top:12px;}
-.gps-status {position:absolute; bottom:20px; left:10px; background:rgba(31,41,55,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:11px; z-index:1000; backdrop-filter:blur(10px);}
-.gps-dot {display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px;}
-.gps-dot.active {background:#10b981; animation:pulse 2s infinite;}
-.gps-dot.inactive {background:#ef4444;}
+  html, body { height: 100%; margin:0; padding:0; font-family:system-ui; overflow:hidden; }
+  #map { width:100%; height:100%; z-index:1; }
+
+  /* Header */
+  .header { position:absolute; top:0; left:0; right:0; height:50px; background:rgba(31,41,55,0.95); color:white; z-index:1001; display:flex; justify-content:space-between; align-items:center; padding:0 10px; backdrop-filter:blur(10px); }
+  .header-left { display:flex; align-items:center; gap:8px; }
+  .header-title { font-weight:bold; font-size:14px; }
+  .btn { padding:6px 10px; background:#374151; border:none; border-radius:4px; color:white; cursor:pointer; font-size:18px; }
+  .btn:hover { background:#4b5563; }
+
+  /* Layer Selector */
+  .layer-selector { position:absolute; top:50px; right:10px; background:rgba(31,41,55,0.95); color:white; padding:8px; border-radius:8px; z-index:1000; backdrop-filter:blur(10px); display:none; }
+  .layer-selector.open { display:block; }
+  .layer-btn { padding:8px 12px; margin:4px 0; width:100%; background:#374151; border:none; color:white; border-radius:4px; cursor:pointer; font-size:12px; }
+  .layer-btn.active { background:#10b981; }
+
+  /* GPS Status */
+  .gps-status { position:absolute; bottom:20px; left:10px; background:rgba(31,41,55,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:11px; z-index:1000; backdrop-filter:blur(10px); }
+
+  /* Mirino */
+  .crosshair { position:absolute; width:32px; height:32px; top:50%; left:50%; margin-left:-16px; margin-top:-16px; z-index:1000; pointer-events:none; }
+  .crosshair::before, .crosshair::after { content:''; position:absolute; background:red; }
+  .crosshair::before { left:15px; top:0; width:2px; height:32px; }
+  .crosshair::after { top:15px; left:0; width:32px; height:2px; }
+
 </style>
 </head>
 <body>
+
 <div id="map"></div>
 
 <!-- Header -->
@@ -50,150 +44,108 @@ select, input, textarea {width:100%; padding:6px; background:#374151; border:1px
     <span style="font-size:20px;">🎯</span>
     <div>
       <div class="header-title">TACTICAL MAP PRO</div>
-      <div class="header-subtitle">ALPHA-1</div>
     </div>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div style="display:flex; gap:8px;">
     <button class="btn" onclick="toggleLayers()">🗺️</button>
-    <button class="btn" onclick="toggleMenu()">☰</button>
   </div>
-</div>
-
-<!-- Info Panel -->
-<div class="info-panel" id="infoPanel">
-  <div class="info-value" id="coordsDisplay">Attendi GPS...</div>
 </div>
 
 <!-- Layer Selector -->
 <div class="layer-selector" id="layerSelector">
-  <button class="layer-btn active" onclick="changeMap('street')">🗺️ Street</button>
-  <button class="layer-btn" onclick="changeMap('satellite')">🛰️ Satellite</button>
-  <button class="layer-btn" onclick="changeMap('topo')">⛰️ Topografica</button>
-  <button class="layer-btn" onclick="changeMap('dark')">🌙 Dark</button>
+  <button class="layer-btn active" onclick="changeMap('street')">Street</button>
+  <button class="layer-btn" onclick="changeMap('satellite')">Satellite</button>
+  <button class="layer-btn" onclick="changeMap('dark')">Dark</button>
 </div>
 
 <!-- GPS Status -->
-<div class="gps-status">
-  <span class="gps-dot inactive" id="gpsDot"></span>
-  <span id="gpsStatus">GPS: Ricerca...</span>
-</div>
+<div class="gps-status" id="gpsStatus">GPS: Ricerca...</div>
 
-<!-- Controls -->
-<div class="controls">
-  <button class="control-btn" onclick="centerGPS()" title="GPS">🧭</button>
-</div>
-
-<!-- Marker Modal -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeMarkerModal()"></div>
-<div class="modal" id="markerModal">
-  <div class="modal-title">Nuovo Marker</div>
-  <input type="text" id="markerTitle" placeholder="Titolo" style="margin-bottom:12px;">
-  <textarea id="markerDesc" placeholder="Descrizione" style="height:80px;resize:none;margin-bottom:12px;"></textarea>
-  <select id="markerType" style="margin-bottom:12px;">
-    <option value="waypoint">📍 Waypoint</option>
-    <option value="objective">🎯 Obiettivo</option>
-    <option value="observation">👁️ Osservazione</option>
-    <option value="hazard">⚠️ Pericolo</option>
-    <option value="friendly">🔵 Forze Amiche</option>
-    <option value="hostile">🔴 Forze Ostili</option>
-    <option value="medic">🏥 Medico</option>
-    <option value="supply">📦 Rifornimenti</option>
-    <option value="lz">🚁 Landing Zone</option>
-  </select>
-  <div class="modal-buttons">
-    <button class="btn" onclick="closeMarkerModal()">Annulla</button>
-    <button class="btn" style="background:#10b981;" onclick="saveMarker()">Salva</button>
-  </div>
-</div>
+<!-- Mirino -->
+<div class="crosshair"></div>
 
 <script>
-// MAPPA
-let map = L.map('map', {zoomControl:false}).setView([41.9028,12.4964],6);
-let tileLayer;
+let map, userMarker, userCircle;
+let gpsActive = false;
+let currentLayer = 'street';
+let tileLayers = {};
 
-// LAYER
-const layers = {
-    street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map),
-    satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}),
-    topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17}),
-    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19})
-};
-tileLayer = layers.street;
+// Inizializza mappa
+function initMap() {
+  map = L.map('map', { zoomControl:true }).setView([41.9028, 12.4964], 6);
 
-// STATE
-let userMarker=null, userCircle=null;
-let currentMarker=null;
-let markers=[];
+  // Tile layers
+  tileLayers.street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+  tileLayers.satellite = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom:17, attribution:'© OpenTopoMap' });
+  tileLayers.dark = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_dark/{z}/{x}/{y}{r}.png', { maxZoom:20, attribution:'© Stadia Maps' });
+}
 
-// GPS
-function initGPS(){
-    if(!navigator.geolocation) return alert('GPS non supportato');
-    navigator.geolocation.watchPosition(pos=>{
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const acc = pos.coords.accuracy;
+// Cambia layer
+function changeMap(layer) {
+  if(layer === currentLayer) return;
+  map.removeLayer(tileLayers[currentLayer]);
+  tileLayers[layer].addTo(map);
+  currentLayer = layer;
 
-        document.getElementById('coordsDisplay').textContent = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}, Acc: ±${Math.round(acc)}m`;
+  // Aggiorna pulsanti
+  document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.layer-btn[onclick*="'+layer+'"]').classList.add('active');
 
-        // Marker utente
-        if(!userCircle){
-            userCircle = L.circle([lat,lng], {radius:acc,color:'#3b82f6', fillOpacity:0.2}).addTo(map);
-        } else {
-            userCircle.setLatLng([lat,lng]);
-            userCircle.setRadius(acc);
-        }
-        if(!userMarker){
-            userMarker = L.marker([lat,lng], {icon:L.divIcon({html:'<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;"></div>',className:'',iconSize:[16,16],iconAnchor:[8,8]})}).addTo(map);
-        } else { userMarker.setLatLng([lat,lng]); }
+  // Chiudi layer menu
+  document.getElementById('layerSelector').classList.remove('open');
+}
+
+// Mostra/nascondi menu layer
+function toggleLayers() {
+  document.getElementById('layerSelector').classList.toggle('open');
+}
+
+// Inizializza GPS
+function initGPS() {
+  if(!navigator.geolocation) {
+    document.getElementById('gpsStatus').textContent = 'GPS non supportato';
+    return;
+  }
+
+  navigator.geolocation.watchPosition(
+    pos => {
+      gpsActive = true;
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = pos.coords.accuracy;
+
+      document.getElementById('gpsStatus').textContent = `GPS Attivo - Acc: ±${Math.round(acc)}m`;
+
+      if(!userMarker) {
+        userMarker = L.marker([lat,lng]).addTo(map);
+        userCircle = L.circle([lat,lng], { radius: acc, color:'#3b82f6', fillOpacity:0.2 }).addTo(map);
         map.setView([lat,lng],16);
-        document.getElementById('gpsDot').classList.add('active');
-        document.getElementById('gpsDot').classList.remove('inactive');
-        document.getElementById('gpsStatus').textContent='GPS: Attivo';
-    }, err=>{console.error(err);});
+      } else {
+        userMarker.setLatLng([lat,lng]);
+        userCircle.setLatLng([lat,lng]);
+        userCircle.setRadius(acc);
+      }
+    },
+    err => {
+      gpsActive = false;
+      document.getElementById('gpsStatus').textContent = 'GPS non disponibile';
+    },
+    { enableHighAccuracy:true, maximumAge:5000 }
+  );
 }
 
-// CENTER GPS
-function centerGPS(){ if(userMarker) map.setView(userMarker.getLatLng(),16); }
+// Mirino touch
+mapClickHandler = (e) => {
+  // qui puoi aggiungere un marker temporaneo se vuoi
+  console.log("Mirino posizione:", e.latlng.lat, e.latlng.lng);
+};
 
-// LAYER
-function toggleLayers(){document.getElementById('layerSelector').classList.toggle('open');}
-function changeMap(type){
-    if(tileLayer) map.removeLayer(tileLayer);
-    tileLayer = layers[type]; tileLayer.addTo(map);
-    document.querySelectorAll('.layer-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelector(`.layer-btn[onclick="changeMap('${type}')"]`).classList.add('active');
-    document.getElementById('layerSelector').classList.remove('open');
-}
-
-// MIRINO TOUCH PER MARKER
-map.on('click', function(e){
-    const lat = e.latlng.lat, lng = e.latlng.lng;
-    currentMarker={lat,lng};
-    document.getElementById('markerTitle').value=''; document.getElementById('markerDesc').value='';
-    document.getElementById('markerType').value='waypoint';
-    document.getElementById('markerModal').classList.add('open');
-    document.getElementById('modalOverlay').classList.add('open');
-});
-
-function closeMarkerModal(){
-    document.getElementById('markerModal').classList.remove('open');
-    document.getElementById('modalOverlay').classList.remove('open');
-}
-
-// SALVA MARKER
-function saveMarker(){
-    const title=document.getElementById('markerTitle').value;
-    const desc=document.getElementById('markerDesc').value;
-    const type=document.getElementById('markerType').value;
-    const icon = L.divIcon({html:`<div style="font-size:28px;">${type==='waypoint'?'📍':type==='objective'?'🎯':type==='observation'?'👁️':type==='hazard'?'⚠️':type==='friendly'?'🔵':type==='hostile'?'🔴':type==='medic'?'🏥':type==='supply'?'📦':'🚁'}</div>`,className:'',iconSize:[28,28],iconAnchor:[14,28]});
-    const marker = L.marker([currentMarker.lat,currentMarker.lng],{icon}).addTo(map);
-    marker.bindPopup(`<b>${title}</b><br>${desc}<br><small>Lat:${currentMarker.lat.toFixed(6)}, Lng:${currentMarker.lng.toFixed(6)}</small>`);
-    markers.push({lat:currentMarker.lat,lng:currentMarker.lng,title,desc,type,leafletMarker:marker});
-    closeMarkerModal();
-}
-
-// INIT
-initGPS();
+window.onload = () => {
+  initMap();
+  initGPS();
+  map.on('click', mapClickHandler);
+};
 </script>
+
 </body>
 </html>
